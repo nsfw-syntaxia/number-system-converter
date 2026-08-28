@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Radix Workbench — Number System Converter &amp; Arithmetic Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Convert numbers between binary, octal, decimal and hexadecimal, then run addition, subtraction, multiplication or division on a shared decimal value.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="sticker">activity build &#10022;</div>
+    <p class="kicker">Number System Converter</p>
+    <h1>Radix <span class="hl">Workbench</span></h1>
+    <p class="lede">Enter three or more numbers in any base &mdash; binary, octal, decimal, or hexadecimal. Each is converted to all four bases, then combined with the operation you choose on a shared decimal value.</p>
+    <dl class="facts">
+      <div><dt>Bases</dt><dd>2 &middot; 8 &middot; 10 &middot; 16</dd></div>
+      <div><dt>Operations</dt><dd>+ &minus; &times; &divide;</dd></div>
+      <div><dt>Inputs</dt><dd id="factCount">3</dd></div>
+    </dl>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button id="tab-calc" role="tab" aria-selected="true" aria-controls="view-calc">Calculator</button>
+    <button id="tab-doc" role="tab" aria-selected="false" aria-controls="view-doc">Documentation</button>
+  </nav>
+
+  <!-- ============ CALCULATOR ============ -->
+  <section id="view-calc" role="tabpanel" aria-labelledby="tab-calc">
+
+    <div class="block">
+      <div class="block-head">
+        <h2><span class="n">1</span> Input numbers</h2>
+        <div class="counter" role="group" aria-label="Number of inputs">
+          <button id="less" aria-label="Remove an input">&minus;</button>
+          <span class="num" id="countLabel">3 inputs</span>
+          <button id="more" aria-label="Add an input">+</button>
+        </div>
+      </div>
+      <div class="rows" id="inputList"></div>
+    </div>
+
+    <div class="block lockable locked" id="step-op">
+      <h2><span class="n">2</span> Arithmetic operation</h2>
+      <p class="hint">Applied to the inputs from left to right after they are converted to decimal.</p>
+      <div class="ops" id="ops" role="group" aria-label="Operation">
+        <button class="op" data-op="+" aria-pressed="true"><span class="sym">+</span><small>Add</small></button>
+        <button class="op" data-op="-" aria-pressed="false"><span class="sym">&minus;</span><small>Subtract</small></button>
+        <button class="op" data-op="*" aria-pressed="false"><span class="sym">&times;</span><small>Multiply</small></button>
+        <button class="op" data-op="/" aria-pressed="false"><span class="sym">&divide;</span><small>Divide</small></button>
+      </div>
+      <div class="lock-veil">
+        <div class="lock-badge">
+          <div class="tape"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2.5" fill="#FFD44D"></rect>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            <circle cx="12" cy="15" r="1.6" fill="currentColor"></circle>
+            <path d="M12 16.4v2.2"></path>
+          </svg>
+          <p class="lock-title">Locked</p>
+          <p class="lock-sub" id="opLockSub">Enter all 3 numbers to unlock</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="block lockable locked" id="step-result">
+      <h2><span class="n">3</span> Result</h2>
+      <div id="resultBody"></div>
+      <div class="lock-veil">
+        <div class="lock-badge">
+          <div class="tape"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2.5" fill="#FFD44D"></rect>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            <circle cx="12" cy="15" r="1.6" fill="currentColor"></circle>
+            <path d="M12 16.4v2.2"></path>
+          </svg>
+          <p class="lock-title">Locked</p>
+          <p class="lock-sub" id="resultLockSub">Finish Step 1 to unlock</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ DOCUMENTATION ============ -->
+  <section id="view-doc" role="tabpanel" aria-labelledby="tab-doc" hidden>
+
+    <div class="block prose">
+      <h2><span class="n">1</span> System requirements</h2>
+      <h3>Functional requirements</h3>
+      <ul>
+        <li>Accept <strong>at least three</strong> input numbers; the user sets the exact count (3 to 8 in this build).</li>
+        <li>For each input the user selects a base: binary (2), octal (8), decimal (10), or hexadecimal (16).</li>
+        <li>A value may include a <strong>fractional part</strong> after a point &mdash; e.g. <code>1010.1</code><sub>2</sub>, <code>3.5</code><sub>10</sub>, <code>A.8</code><sub>16</sub>.</li>
+        <li>Each value is <strong>validated</strong> against the digit set of its selected base before it is used.</li>
+        <li>Every valid input is converted into all four bases and displayed individually.</li>
+        <li>The user selects one operation: addition, subtraction, multiplication, or division.</li>
+        <li>Inputs of different bases are converted to a <strong>common representation (decimal)</strong> before the operation runs.</li>
+        <li>Output shows the arithmetic expression using the <em>original</em> input values and the final result in binary, octal, decimal, and hexadecimal.</li>
+        <li>Invalid input, missing input, and division by zero are reported and stop the calculation.</li>
+      </ul>
+      <h3>Non-functional requirements</h3>
+      <ul>
+        <li>Single page, no installation, runs in any modern browser.</li>
+        <li>Values are stored as exact fractions (BigInt numerator / denominator), so conversion and arithmetic never lose precision. Repeating expansions are shown truncated.</li>
+        <li>Conversions and the result update immediately as inputs change.</li>
+        <li>Steps 2 and 3 stay locked until every input number is valid, so the flow is followed in order.</li>
+      </ul>
+    </div>
+
+    <div class="block prose">
+      <h2><span class="n">2</span> Algorithm / pseudocode</h2>
+      <pre class="code"><span class="cm">// Number System Converter and Arithmetic Calculator</span>
+
+<span class="kw">BEGIN</span>
+  READ n                          <span class="cm">// how many numbers, n &gt;= 3</span>
+
+  <span class="kw">FOR</span> i <span class="kw">FROM</span> 1 <span class="kw">TO</span> n <span class="kw">DO</span>
+      READ base[i]                 <span class="cm">// 2, 8, 10 or 16</span>
+      READ value[i]                <span class="cm">// text entered by the user</span>
+
+      <span class="kw">IF</span> value[i] is not valid for base[i] <span class="kw">THEN</span>
+          PRINT "Invalid input for base " + base[i]
+          ask again for value[i]
+      <span class="kw">ENDIF</span>
+
+      dec[i] &larr; TO_DECIMAL(value[i], base[i])
+      PRINT value[i] " in BIN / OCT / DEC / HEX ="
+            TO_BASE(dec[i], 2), TO_BASE(dec[i], 8),
+            TO_BASE(dec[i], 10), TO_BASE(dec[i], 16)
+  <span class="kw">ENDFOR</span>
+
+  READ op                         <span class="cm">// + , - , * , /</span>
+
+  result &larr; dec[1]
+  <span class="kw">FOR</span> k <span class="kw">FROM</span> 2 <span class="kw">TO</span> n <span class="kw">DO</span>
+      <span class="kw">IF</span> op = "/" <span class="kw">AND</span> dec[k] = 0 <span class="kw">THEN</span>
+          PRINT "Error: division by zero"
+          <span class="kw">STOP</span>
+      <span class="kw">ENDIF</span>
+      result &larr; APPLY(op, result, dec[k])
+  <span class="kw">ENDFOR</span>
+
+  PRINT expression using original value[1..n] and op
+  PRINT "= " TO_BASE(result, 2), TO_BASE(result, 8),
+             TO_BASE(result, 10), TO_BASE(result, 16)
+<span class="kw">END</span>
+
+<span class="kw">FUNCTION</span> TO_DECIMAL(text, base)
+  split text into intText and fracText on "."
+  total &larr; 0
+  <span class="kw">FOR</span> each digit d in intText, left to right <span class="kw">DO</span>
+      total &larr; total * base + digitValue(d)
+  place &larr; 1
+  <span class="kw">FOR</span> each digit d in fracText, left to right <span class="kw">DO</span>
+      place &larr; place / base
+      total &larr; total + digitValue(d) * place
+  <span class="kw">RETURN</span> total                <span class="cm">// kept as an exact fraction</span>
+
+<span class="kw">FUNCTION</span> TO_BASE(number, base)
+  sign &larr; ""
+  <span class="kw">IF</span> number &lt; 0 <span class="kw">THEN</span> sign &larr; "-" ; number &larr; -number
+  intPart &larr; floor(number) ; frac &larr; number - intPart
+
+  digits &larr; ""
+  <span class="kw">IF</span> intPart = 0 <span class="kw">THEN</span> digits &larr; "0"
+  <span class="kw">WHILE</span> intPart &gt; 0 <span class="kw">DO</span>
+      digits &larr; symbol(intPart mod base) + digits
+      intPart &larr; intPart div base
+
+  <span class="kw">IF</span> frac &gt; 0 <span class="kw">THEN</span>
+      digits &larr; digits + "."
+      <span class="kw">REPEAT</span> up to MAX_FRAC_DIGITS times, while frac &gt; 0 <span class="kw">DO</span>
+          frac &larr; frac * base
+          digits &larr; digits + symbol(floor(frac))
+          frac &larr; frac - floor(frac)
+
+  <span class="kw">RETURN</span> sign + digits</pre>
+    </div>
+
+    <div class="block prose">
+      <h2><span class="n">3</span> Flowchart</h2>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A([Start]) --> B[/Read n, the count of numbers  n &gt;= 3/]
+    B --> C["i = 1"]
+    C --> D{i &lt;= n?}
+    D -- Yes --> E[/Read base_i and value_i/]
+    E --> F{value_i valid<br/>for base_i?}
+    F -- No --> E
+    F -- Yes --> G["dec_i = to_decimal(value_i, base_i)"]
+    G --> H[/Show value_i in BIN, OCT, DEC, HEX/]
+    H --> I["i = i + 1"]
+    I --> D
+    D -- No --> J[/Read operation + - x div/]
+    J --> K["result = dec_1 ; k = 2"]
+    K --> L{k &lt;= n?}
+    L -- Yes --> M{op is div<br/>and dec_k = 0?}
+    M -- Yes --> X[/Show 'division by zero'/]
+    X --> Z([End])
+    M -- No --> N["result = apply(op, result, dec_k)"]
+    N --> O["k = k + 1"]
+    O --> L
+    L -- No --> P[/Show expression with original values/]
+    P --> Q[/Show result in BIN, OCT, DEC, HEX/]
+    Q --> Z
+</pre>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2><span class="n">4</span> Test cases</h2>
+      <p class="hint">Every base combination from the brief across all four operations. Press <strong>Try</strong> to load a case into the calculator.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead>
+            <tr><th>#</th><th>Base mix</th><th>Op</th><th>Inputs (original)</th><th>Expected &mdash; DEC / BIN / OCT / HEX</th><th></th></tr>
+          </thead>
+          <tbody id="tcBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2><span class="n">5</span> Sample output</h2>
+      <div class="sample" id="sampleOut"></div>
+    </div>
+
+  </section>
+
+  <footer class="foot">Radix Workbench &mdash; integer arithmetic; negative results are shown in sign&ndash;magnitude form.</footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+  /* Render the flowchart only once the Documentation tab is visible AND the
+     web fonts have loaded — Mermaid measures label widths, and measuring
+     inside a display:none container (or with a fallback font) clips the text. */
+  if (window.mermaid) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "neutral",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true }
+    });
+  }
+  let flowchartRendered = false;
+  async function renderFlowchart() {
+    if (flowchartRendered || !window.mermaid) return;
+    const nodes = document.querySelectorAll("pre.mermaid");
+    if (!nodes.length) return;
+    flowchartRendered = true;
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (e) { /* ignore */ }
+    }
+    try { await mermaid.run({ nodes }); }
+    catch (e) { flowchartRendered = false; }
+  }
+</script>
+<script defer src="js/rational.js"></script>
+<script defer src="js/converter.js"></script>
+<script defer src="js/arithmetic.js"></script>
+<script defer src="js/testcases.js"></script>
+<script defer src="js/app.js"></script>
+</body>
+</html>
