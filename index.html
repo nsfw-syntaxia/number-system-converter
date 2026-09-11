@@ -48,13 +48,37 @@
 
     <div class="block lockable locked" id="step-op">
       <h2><span class="n">2</span> Arithmetic operation</h2>
-      <p class="hint">Applied to the inputs from left to right after they are converted to decimal.</p>
-      <div class="ops" id="ops" role="group" aria-label="Operation">
-        <button class="op" data-op="+" aria-pressed="true"><span class="sym">+</span><small>Add</small></button>
-        <button class="op" data-op="-" aria-pressed="false"><span class="sym">&minus;</span><small>Subtract</small></button>
-        <button class="op" data-op="*" aria-pressed="false"><span class="sym">&times;</span><small>Multiply</small></button>
-        <button class="op" data-op="/" aria-pressed="false"><span class="sym">&divide;</span><small>Divide</small></button>
+      <p class="hint">Applied to the inputs after they are converted to decimal.</p>
+
+      <div class="mode-toggle" role="group" aria-label="Operation mode">
+        <button class="mode-btn" data-mode="chain" aria-pressed="true">Simple chain</button>
+        <button class="mode-btn" data-mode="expr" aria-pressed="false">Expression</button>
       </div>
+
+      <div id="modeChain">
+        <div class="ops" id="ops" role="group" aria-label="Operation">
+          <button class="op" data-op="+" aria-pressed="true"><span class="sym">+</span><small>Add</small></button>
+          <button class="op" data-op="-" aria-pressed="false"><span class="sym">&minus;</span><small>Subtract</small></button>
+          <button class="op" data-op="*" aria-pressed="false"><span class="sym">&times;</span><small>Multiply</small></button>
+          <button class="op" data-op="/" aria-pressed="false"><span class="sym">&divide;</span><small>Divide</small></button>
+        </div>
+        <p class="hint small">Runs left to right: <code>((v1 op v2) op v3) &hellip;</code></p>
+      </div>
+
+      <div id="modeExpr" hidden>
+        <div class="var-legend" id="varLegend"></div>
+        <div class="field expr-field">
+          <input type="text" id="exprInput" class="mono" spellcheck="false" autocomplete="off"
+                 placeholder="e.g. (a + b - c) * d" aria-label="Expression formula">
+        </div>
+        <div class="msg" id="exprMsg" aria-live="polite"></div>
+        <p class="hint small">
+          Operators <code>+ &minus; &times; &divide;</code> and parentheses <code>( )</code> are supported.
+          <strong>&times;</strong> and <strong>&divide;</strong> run before <strong>+</strong> and <strong>&minus;</strong>;
+          operators of equal precedence run left to right. Parentheses override this order.
+        </p>
+      </div>
+
       <div class="lock-veil">
         <div class="lock-badge">
           <div class="tape"></div>
@@ -102,10 +126,12 @@
         <li>A value may include a <strong>fractional part</strong> after a point &mdash; e.g. <code>1010.1</code><sub>2</sub>, <code>3.5</code><sub>10</sub>, <code>A.8</code><sub>16</sub>.</li>
         <li>Each value is <strong>validated</strong> against the digit set of its selected base before it is used.</li>
         <li>Every valid input is converted into all four bases and displayed individually.</li>
-        <li>The user selects one operation: addition, subtraction, multiplication, or division.</li>
-        <li>Inputs of different bases are converted to a <strong>common representation (decimal)</strong> before the operation runs.</li>
-        <li>Output shows the arithmetic expression using the <em>original</em> input values and the final result in binary, octal, decimal, and hexadecimal.</li>
-        <li>Invalid input, missing input, and division by zero are reported and stop the calculation.</li>
+        <li><strong>Simple chain mode</strong> &mdash; the user selects one operation (+, &minus;, &times;, &divide;) and it is applied to the inputs left to right: <code>((v1 op v2) op v3) &hellip;</code></li>
+        <li><strong>Expression mode</strong> &mdash; the user may instead type a free-form expression that combines the inputs (labelled <code>a</code>, <code>b</code>, <code>c</code>, &hellip; in input order) with <strong>different operators and parentheses</strong>, e.g. <code>(a + b &minus; c) &times; d</code>.</li>
+        <li>Expressions follow standard <strong>operator precedence</strong> (&times; and &divide; run before + and &minus;) and <strong>left-to-right associativity</strong> for operators that share a precedence level; parentheses override both.</li>
+        <li>Inputs of different bases are converted to a <strong>common representation (decimal)</strong> before any operation runs.</li>
+        <li>Output shows the expression using the <em>original</em> input values, the same expression with each variable substituted by its decimal value, and the final result in binary, octal, decimal, and hexadecimal.</li>
+        <li>Invalid input, missing input, division by zero, and malformed expressions are all <strong>caught and reported</strong> without crashing &mdash; see <em>Arithmetic error handling</em> below.</li>
       </ul>
       <h3>Non-functional requirements</h3>
       <ul>
@@ -114,6 +140,24 @@
         <li>Conversions and the result update immediately as inputs change.</li>
         <li>Steps 2 and 3 stay locked until every input number is valid, so the flow is followed in order.</li>
       </ul>
+      <h3>Arithmetic error handling</h3>
+      <p>Every error is caught before it reaches the result and shown inline in a highlighted panel instead of a stack trace or a blank screen. The calculation simply does not run until the problem is fixed.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead><tr><th>Scenario</th><th>Detected in</th><th>Message shown to the user</th></tr></thead>
+          <tbody>
+            <tr><td>Digit outside the selected base's digit set</td><td class="mono">parseValue()</td><td>&ldquo;&lt;Base&gt; uses digits &hellip;&rdquo;</td></tr>
+            <tr><td>Input left empty</td><td class="mono">parseValue()</td><td>Row stays neutral; Steps 2&ndash;3 stay locked</td></tr>
+            <tr><td>Division by zero &mdash; chain <em>or</em> expression mode</td><td class="mono">ratDiv()</td><td>&ldquo;Division by zero is undefined &mdash; change the divisor.&rdquo;</td></tr>
+            <tr><td>Empty formula</td><td class="mono">evaluateFormula()</td><td>&ldquo;Enter a formula to evaluate, e.g. (a + b &minus; c) * d.&rdquo;</td></tr>
+            <tr><td>Unrecognised character in a formula</td><td class="mono">tokenizeFormula()</td><td>&ldquo;Unexpected character &ldquo;&hellip;&rdquo; in the formula.&rdquo;</td></tr>
+            <tr><td>Missing or extra parenthesis</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;Missing a closing )&hellip;&rdquo; / &ldquo;Unmatched )&hellip;&rdquo;</td></tr>
+            <tr><td>Two values with no operator between them</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;Unexpected &hellip; &mdash; did you forget an operator?&rdquo;</td></tr>
+            <tr><td>Formula ends after an operator</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;The formula ends unexpectedly &hellip;&rdquo;</td></tr>
+            <tr><td>Formula uses a letter beyond the current inputs (e.g. &ldquo;e&rdquo; with only 3 inputs)</td><td class="mono">evaluateFormula()</td><td>&ldquo;Variable &ldquo;e&rdquo; is not defined &mdash; this run has inputs a&ndash;c.&rdquo;</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="block prose">
@@ -184,6 +228,66 @@
           frac &larr; frac - floor(frac)
 
   <span class="kw">RETURN</span> sign + digits</pre>
+      <p class="hint" style="margin-top:18px;">Expression mode replaces the single READ op / APPLY loop above with a small
+        recursive-descent parser so the user can mix operators and parentheses freely. Grammar, lowest to highest
+        precedence:</p>
+      <pre class="code"><span class="cm">// expr   := term (("+" | "-") term)*        -- + and - , left associative
+// term   := factor (("*" | "/") factor)*    -- * and / , left associative, binds tighter
+// factor := ("+" | "-") factor | primary     -- unary sign
+// primary:= NUMBER | VARIABLE | "(" expr ")"</span>
+
+<span class="kw">FUNCTION</span> TOKENIZE(text)
+  tokens &larr; empty list
+  <span class="kw">FOR</span> each character c in text, left to right <span class="kw">DO</span>
+      <span class="kw">IF</span> c is whitespace <span class="kw">THEN</span> skip
+      <span class="kw">ELSE IF</span> c is "(" or ")" <span class="kw">THEN</span> tokens.push(c)
+      <span class="kw">ELSE IF</span> c is "+" "-" "*" "/" <span class="kw">THEN</span> tokens.push(OP, c)
+      <span class="kw">ELSE IF</span> c is a digit or "." <span class="kw">THEN</span>
+          consume following digits/"." &rarr; text2
+          tokens.push(NUMBER, text2)
+      <span class="kw">ELSE IF</span> c is a letter <span class="kw">THEN</span> tokens.push(VARIABLE, lowercase(c))
+      <span class="kw">ELSE</span> <span class="kw">THROW</span> "Unexpected character " + c
+  <span class="kw">RETURN</span> tokens
+
+<span class="kw">FUNCTION</span> PARSE_EXPR(tokens)
+  node &larr; PARSE_TERM(tokens)
+  <span class="kw">WHILE</span> next token is "+" or "-" <span class="kw">DO</span>
+      op &larr; consume() ; right &larr; PARSE_TERM(tokens)
+      node &larr; { BIN, op, node, right }
+  <span class="kw">RETURN</span> node
+
+<span class="kw">FUNCTION</span> PARSE_TERM(tokens)
+  node &larr; PARSE_FACTOR(tokens)
+  <span class="kw">WHILE</span> next token is "*" or "/" <span class="kw">DO</span>
+      op &larr; consume() ; right &larr; PARSE_FACTOR(tokens)
+      node &larr; { BIN, op, node, right }
+  <span class="kw">RETURN</span> node
+
+<span class="kw">FUNCTION</span> PARSE_FACTOR(tokens)
+  <span class="kw">IF</span> next token is "+" or "-" <span class="kw">THEN</span>
+      op &larr; consume()
+      <span class="kw">RETURN</span> { UNARY, op, PARSE_FACTOR(tokens) }
+  <span class="kw">RETURN</span> PARSE_PRIMARY(tokens)
+
+<span class="kw">FUNCTION</span> PARSE_PRIMARY(tokens)
+  <span class="kw">IF</span> next token is "(" <span class="kw">THEN</span>
+      consume "(" ; node &larr; PARSE_EXPR(tokens)
+      <span class="kw">IF</span> next token is not ")" <span class="kw">THEN</span> <span class="kw">THROW</span> "Missing closing )"
+      consume ")" ; <span class="kw">RETURN</span> node
+  <span class="kw">ELSE IF</span> next token is NUMBER or VARIABLE <span class="kw">THEN</span> <span class="kw">RETURN</span> consume()
+  <span class="kw">ELSE</span> <span class="kw">THROW</span> "Expected a number, variable, or ("
+  <span class="cm">// tokens left over after PARSE_EXPR returns -&gt; "unexpected token" / unmatched ")"</span>
+
+<span class="kw">FUNCTION</span> EVALUATE(node, values)        <span class="cm">// values[letter] = decimal value of that input</span>
+  <span class="kw">SWITCH</span> node.type
+      NUMBER:   <span class="kw">RETURN</span> TO_DECIMAL(node.text, 10)
+      VARIABLE: <span class="kw">IF</span> values[node.name] is undefined <span class="kw">THEN</span> <span class="kw">THROW</span> "Unknown variable " + node.name
+                <span class="kw">RETURN</span> values[node.name]
+      UNARY:    v &larr; EVALUATE(node.expr, values)
+                <span class="kw">RETURN</span> (node.op = "-") ? -v : v
+      BIN:      l &larr; EVALUATE(node.left, values) ; r &larr; EVALUATE(node.right, values)
+                <span class="kw">IF</span> node.op = "/" <span class="kw">AND</span> r = 0 <span class="kw">THEN</span> <span class="kw">THROW</span> "Division by zero"
+                <span class="kw">RETURN</span> APPLY(node.op, l, r)</pre>
     </div>
 
     <div class="block prose">
@@ -201,8 +305,9 @@ flowchart TD
     G --> H[/Show value_i in BIN, OCT, DEC, HEX/]
     H --> I["i = i + 1"]
     I --> D
-    D -- No --> J[/Read operation + - x div/]
-    J --> K["result = dec_1 ; k = 2"]
+    D -- No --> J{Mode?}
+    J -->|Simple chain| J1[/Read operation + - x div/]
+    J1 --> K["result = dec_1 ; k = 2"]
     K --> L{k &lt;= n?}
     L -- Yes --> M{op is div<br/>and dec_k = 0?}
     M -- Yes --> X[/Show 'division by zero'/]
@@ -211,19 +316,81 @@ flowchart TD
     N --> O["k = k + 1"]
     O --> L
     L -- No --> P[/Show expression with original values/]
+    J -->|Expression| J2[/Read formula text/]
+    J2 --> J3["result = EVALUATE_EXPRESSION(formula, dec_1..n)<br/>(see Expression evaluation flowchart)"]
+    J3 --> J4{Evaluated ok?}
+    J4 -- No --> X
+    J4 -- Yes --> P
     P --> Q[/Show result in BIN, OCT, DEC, HEX/]
     Q --> Z
 </pre>
       </div>
+      <p class="hint" style="margin-top:18px;">Expression evaluation, expanded:</p>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A2([Start]) --> B2[/Read formula text/]
+    B2 --> C2["tokens = TOKENIZE(formula)"]
+    C2 --> D2{Tokenizing ok?}
+    D2 -- No --> E2[/Show tokenizing error/]
+    E2 --> Z2([Return error])
+    D2 -- Yes --> F2["ast = PARSE_EXPR(tokens)"]
+    F2 --> G2{Parsed ok AND<br/>every token consumed?}
+    G2 -- No --> H2["Show syntax error &mdash;<br/>unmatched parenthesis or stray operator"]
+    H2 --> Z2
+    G2 -- Yes --> I2["result = EVALUATE(ast, dec_1..n)"]
+    I2 --> J5{Evaluated ok?}
+    J5 -- No --> K2[/Show arithmetic error &mdash;<br/>unknown variable or division by zero/]
+    K2 --> Z2
+    J5 -- Yes --> L2([Return result])
+</pre>
+      </div>
+    </div>
+
+    <div class="block prose">
+      <h2><span class="n">4</span> Program implementation</h2>
+      <p>No build step or framework &mdash; six plain <code>&lt;script&gt;</code> files, loaded in dependency order, with the
+         calculation logic kept free of DOM code so it can be read (or unit-tested) on its own.</p>
+      <h3>Modules</h3>
+      <ul>
+        <li><code>js/rational.js</code> &mdash; exact rational arithmetic on BigInt fractions: <code>rat()</code>, <code>ratAdd</code>,
+            <code>ratSub</code>, <code>ratMul</code>, <code>ratDiv</code> (throws on &divide;0), <code>ratNeg</code>.</li>
+        <li><code>js/converter.js</code> &mdash; <code>BASES</code> metadata, <code>parseValue()</code> (text + base &rarr; rational,
+            validates digits), <code>toBaseParts()</code> / <code>toBase()</code> (rational &rarr; text in a base).</li>
+        <li><code>js/arithmetic.js</code> &mdash; <code>OP_SYMBOL</code> / <code>OP_FN</code> maps and <code>applyOperation()</code> for
+            <strong>Simple chain</strong> mode: folds an operator across values left to right.</li>
+        <li><code>js/expression.js</code> &mdash; <code>tokenizeFormula()</code>, <code>parseFormulaTokens()</code> (the recursive-descent
+            parser that implements precedence and left associativity), <code>evaluateFormulaAst()</code>, and
+            <code>renderFormulaHTML()</code> for <strong>Expression</strong> mode.</li>
+        <li><code>js/testcases.js</code> &mdash; <code>TEST_CASES</code>, the activity's test matrix: base combinations, fractional
+            values, negative results, expression formulas, and forced error cases.</li>
+        <li><code>js/app.js</code> &mdash; UI layer: builds the input rows, wires the mode toggle, validates and renders Steps
+            1&ndash;3, the step-unlock animation, and the Documentation tab (test table, sample output).</li>
+      </ul>
+      <h3>Requirement &rarr; implementation</h3>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead><tr><th>Requirement</th><th>Where it lives</th></tr></thead>
+          <tbody>
+            <tr><td>Base conversion &amp; validation</td><td class="mono">parseValue(), toBaseParts() &mdash; converter.js</td></tr>
+            <tr><td>Simple left-to-right operation</td><td class="mono">applyOperation() &mdash; arithmetic.js</td></tr>
+            <tr><td>Expressions: different operators + parentheses</td><td class="mono">parseFormulaTokens() &mdash; expression.js</td></tr>
+            <tr><td>Operator precedence &amp; associativity</td><td class="mono">expr &rarr; term &rarr; factor &rarr; primary grammar &mdash; expression.js</td></tr>
+            <tr><td>Arithmetic error handling</td><td class="mono">ratDiv(), parseValue(), tokenizeFormula(), parseFormulaTokens(), evaluateFormulaAst() &mdash; each throws a descriptive Error that app.js catches and renders in a <code>.note.bad</code> panel</td></tr>
+            <tr><td>Exact precision</td><td class="mono">BigInt fractions throughout &mdash; rational.js (no floating point in the calculation path)</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="block">
-      <h2><span class="n">4</span> Test cases</h2>
-      <p class="hint">Every base combination from the brief across all four operations. Press <strong>Try</strong> to load a case into the calculator.</p>
+      <h2><span class="n">5</span> Test cases</h2>
+      <p class="hint">Every base combination from the brief across all four operations, plus expression-mode formulas and
+        forced error cases. Press <strong>Try</strong> to load a case into the calculator.</p>
       <div class="tc-wrap">
         <table class="tc">
           <thead>
-            <tr><th>#</th><th>Base mix</th><th>Op</th><th>Inputs (original)</th><th>Expected &mdash; DEC / BIN / OCT / HEX</th><th></th></tr>
+            <tr><th>#</th><th>Base mix</th><th>Op / formula</th><th>Inputs (original)</th><th>Expected &mdash; DEC / BIN / OCT / HEX</th><th></th></tr>
           </thead>
           <tbody id="tcBody"></tbody>
         </table>
@@ -231,8 +398,15 @@ flowchart TD
     </div>
 
     <div class="block">
-      <h2><span class="n">5</span> Sample output</h2>
+      <h2><span class="n">6</span> Sample output</h2>
+      <p class="hint">Three runs of the program: a Simple chain calculation, an Expression-mode calculation with
+        parentheses and mixed precedence, and a run that trips an arithmetic error.</p>
+      <h3>Simple chain</h3>
       <div class="sample" id="sampleOut"></div>
+      <h3 style="margin-top:22px;">Expression &mdash; precedence &amp; parentheses</h3>
+      <div class="sample" id="sampleOutExpr"></div>
+      <h3 style="margin-top:22px;">Arithmetic error</h3>
+      <div class="sample" id="sampleOutError"></div>
     </div>
 
   </section>
@@ -270,6 +444,7 @@ flowchart TD
 <script defer src="js/rational.js"></script>
 <script defer src="js/converter.js"></script>
 <script defer src="js/arithmetic.js"></script>
+<script defer src="js/expression.js"></script>
 <script defer src="js/testcases.js"></script>
 <script defer src="js/app.js"></script>
 </body>

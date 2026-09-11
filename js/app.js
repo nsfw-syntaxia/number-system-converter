@@ -13,6 +13,7 @@ let state = [
   { base: 10, raw: "" }
 ];
 let op = "+";
+let mode = "chain";     // "chain" (Step 2 operation buttons) or "expr" (free-form formula)
 
 /* ---- cached DOM ---- */
 const inputList   = document.getElementById("inputList");
@@ -20,6 +21,10 @@ const resultBody  = document.getElementById("resultBody");
 const opsEl       = document.getElementById("ops");
 const opBlock     = document.getElementById("step-op");
 const resultBlock = document.getElementById("step-result");
+const modeChainEl = document.getElementById("modeChain");
+const modeExprEl  = document.getElementById("modeExpr");
+const exprInput   = document.getElementById("exprInput");
+const exprMsg     = document.getElementById("exprMsg");
 
 /* ============================================================
    Step 1 — input rows
@@ -61,6 +66,7 @@ function buildRows() {
         row.querySelector("input").placeholder =
           "enter a " + BASES[state[i].base].label.toLowerCase() + " value";
         refreshRow(i);
+        renderVarLegend();
         refreshResult();
       });
     });
@@ -75,6 +81,18 @@ function buildRows() {
     inputList.appendChild(row);
     refreshRow(i);
   });
+
+  renderVarLegend();
+}
+
+/** Legend shown in Expression mode: which letter maps to which input. */
+function renderVarLegend() {
+  const legend = document.getElementById("varLegend");
+  if (!legend) return;
+  legend.innerHTML = state.map((s, i) => {
+    const letter = String.fromCharCode(97 + i);
+    return `<div class="var-chip"><span class="letter">${letter}</span><span class="src">Input ${i + 1} &middot; ${BASES[s.base].name}</span></div>`;
+  }).join("");
 }
 
 function emptyChips() {
@@ -213,6 +231,42 @@ function placeValueBlock(value) {
   </div>`;
 }
 
+/** Build the result-grid + note + place-value markup shared by both modes. */
+function buildResultHTML(exprLineHTML, decimalLineHTML, result) {
+  let anyTruncated = false;
+  const cards = BASE_ORDER.map(b => {
+    const info = toBaseParts(result, b);
+    if (info.truncated) anyTruncated = true;
+    return `<div class="rcard ${b === 10 ? "dec" : ""}">
+      <div class="lab">${BASES[b].label} <b>base ${b}</b></div>
+      <div class="big">${info.text}<sub>${b}</sub></div>
+      ${info.truncated ? `<div class="sublabel">repeating &mdash; shown to ${MAX_FRAC_DIGITS} places</div>` : ""}
+    </div>`;
+  }).join("");
+
+  const note = anyTruncated
+    ? `<div class="note">One or more of these results is a repeating fraction and is shown
+       truncated to ${MAX_FRAC_DIGITS} places. Internally the value is kept as the exact
+       fraction <strong>${result.n}/${result.d}</strong>.</div>`
+    : "";
+
+  return `
+    <div class="expr">${exprLineHTML} <span class="op-sym">=</span> ${toBase(result, 10)}<sub>10</sub></div>
+    <div class="expr secondary">common representation (decimal): ${decimalLineHTML} = ${toBase(result, 10)}</div>
+    <div class="result-grid">${cards}</div>
+    ${note}
+    ${placeValueBlock(result)}`;
+}
+
+/** letter (a, b, c, ...) -> the raw text + base of that input row, for display. */
+function originalPieceForVar(name) {
+  const idx = name.charCodeAt(0) - 97;
+  const s = state[idx];
+  if (!s) return `${name}?`;
+  const raw = s.raw.trim().toUpperCase() || "?";
+  return `${raw}<sub>${s.base}</sub>`;
+}
+
 function refreshResult() {
   document.getElementById("factCount").textContent = state.length;
   document.getElementById("countLabel").textContent = state.length + " inputs";
@@ -233,9 +287,17 @@ function refreshResult() {
   }
 
   if (problem) {
+    const exprLine = mode === "expr"
+      ? renderFormulaHTMLSafe()
+      : exprFromOriginals();
     resultBody.innerHTML = `
-      <div class="expr">${exprFromOriginals()} <span class="op-sym">=</span> ?</div>
+      <div class="expr">${exprLine} <span class="op-sym">=</span> ?</div>
       <div class="note bad">${problem}</div>`;
+    return;
+  }
+
+  if (mode === "expr") {
+    refreshExpressionResult(values);
     return;
   }
 
@@ -253,29 +315,56 @@ function refreshResult() {
     .map((v, idx) => idx === 0 ? toBase(v, 10) : `${OP_SYMBOL[op]} ${toBase(v, 10)}`)
     .join(" ");
 
-  let anyTruncated = false;
-  const cards = BASE_ORDER.map(b => {
-    const info = toBaseParts(result, b);
-    if (info.truncated) anyTruncated = true;
-    return `<div class="rcard ${b === 10 ? "dec" : ""}">
-      <div class="lab">${BASES[b].label} <b>base ${b}</b></div>
-      <div class="big">${info.text}<sub>${b}</sub></div>
-      ${info.truncated ? `<div class="sublabel">repeating &mdash; shown to ${MAX_FRAC_DIGITS} places</div>` : ""}
-    </div>`;
-  }).join("");
+  resultBody.innerHTML = buildResultHTML(exprFromOriginals(), decimalExpr, result);
+}
 
-  const note = anyTruncated
-    ? `<div class="note">One or more of these results is a repeating fraction and is shown
-       truncated to ${MAX_FRAC_DIGITS} places. Internally the value is kept as the exact
-       fraction <strong>${result.n}/${result.d}</strong>.</div>`
-    : "";
+/** Best-effort rendering of the formula (with original values) even when it doesn't parse. */
+function renderFormulaHTMLSafe() {
+  try {
+    const tokens = tokenizeFormula(exprInput.value.trim());
+    return renderFormulaHTML(tokens, originalPieceForVar);
+  } catch (e) {
+    return exprInput.value.trim() ? exprInput.value.trim() : "?";
+  }
+}
 
-  resultBody.innerHTML = `
-    <div class="expr">${exprFromOriginals()} <span class="op-sym">=</span> ${toBase(result, 10)}<sub>10</sub></div>
-    <div class="expr secondary">common representation (decimal): ${decimalExpr} = ${toBase(result, 10)}</div>
-    <div class="result-grid">${cards}</div>
-    ${note}
-    ${placeValueBlock(result)}`;
+/** Step 3 rendering for Expression mode: parse, evaluate, and show the result — or the error. */
+function refreshExpressionResult(values) {
+  const formula = exprInput.value.trim();
+  let tokens, ast;
+  try {
+    tokens = tokenizeFormula(formula);
+    ast = parseFormulaTokens(tokens);
+    exprMsg.className = "msg";
+    exprMsg.textContent = "";
+  } catch (err) {
+    exprMsg.className = "msg err";
+    exprMsg.textContent = err.message;
+    resultBody.innerHTML = `
+      <div class="expr">${renderFormulaHTMLSafe()} <span class="op-sym">=</span> ?</div>
+      <div class="note bad">${err.message}</div>`;
+    return;
+  }
+
+  const varValues = {};
+  values.forEach((v, i) => { varValues[String.fromCharCode(97 + i)] = v; });
+
+  const exprLine = renderFormulaHTML(tokens, originalPieceForVar);
+
+  let result;
+  try {
+    result = evaluateFormulaAst(ast, varValues);
+  } catch (err) {
+    exprMsg.className = "msg err";
+    exprMsg.textContent = err.message;
+    resultBody.innerHTML = `
+      <div class="expr">${exprLine} <span class="op-sym">=</span> ?</div>
+      <div class="note bad">${err.message}</div>`;
+    return;
+  }
+
+  const decimalLine = renderFormulaHTML(tokens, name => toBase(varValues[name], 10));
+  resultBody.innerHTML = buildResultHTML(exprLine, decimalLine, result);
 }
 
 /* ============================================================
@@ -312,6 +401,24 @@ opsEl.querySelectorAll(".op").forEach(btn => {
   });
 });
 
+/** Switch between Simple chain and Expression mode (also used by loadCase()). */
+function setMode(newMode) {
+  mode = newMode === "expr" ? "expr" : "chain";
+  document.querySelectorAll(".mode-btn").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  modeChainEl.hidden = mode !== "chain";
+  modeExprEl.hidden = mode !== "expr";
+}
+
+document.querySelectorAll(".mode-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setMode(btn.dataset.mode);
+    refreshResult();
+  });
+});
+
+exprInput.addEventListener("input", refreshResult);
+
 const tabCalc = document.getElementById("tab-calc");
 const tabDoc  = document.getElementById("tab-doc");
 const viewCalc = document.getElementById("view-calc");
@@ -338,20 +445,32 @@ function renderTestTable() {
   const body = document.getElementById("tcBody");
 
   body.innerHTML = TEST_CASES.map((tc, i) => {
-    const values = tc.inputs.map(([b, v]) => parseValue(v, b));
-    const result = applyOperation(values, tc.op);
+    const isExpr = tc.mode === "expr";
+    let expected;
+    try {
+      const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+      let result;
+      if (isExpr) {
+        const varValues = {};
+        values.forEach((v, idx) => { varValues[String.fromCharCode(97 + idx)] = v; });
+        result = evaluateFormulaAst(parseFormulaTokens(tokenizeFormula(tc.formula)), varValues);
+      } else {
+        result = applyOperation(values, tc.op);
+      }
+      expected = `${toBase(result, 10)} / ${toBase(result, 2)} / ` +
+        `${toBase(result, 8)} / ${toBase(result, 16)}`;
+    } catch (err) {
+      expected = `Error &mdash; ${err.message}`;
+    }
+
     const originals = tc.inputs
       .map(([b, v]) => `${v}<sub>${b}</sub>`)
-      .join(" " + OP_SYMBOL[tc.op] + " ");
-
-    const expected =
-      `${toBase(result, 10)} / ${toBase(result, 2)} / ` +
-      `${toBase(result, 8)} / ${toBase(result, 16)}`;
+      .join(isExpr ? ", " : " " + OP_SYMBOL[tc.op] + " ");
 
     return `<tr>
       <td class="mono">${String(i + 1).padStart(2, "0")}</td>
       <td>${tc.mix}</td>
-      <td class="mono">${OP_SYMBOL[tc.op]}</td>
+      <td class="mono">${isExpr ? tc.formula : OP_SYMBOL[tc.op]}</td>
       <td class="mono">${originals}</td>
       <td class="mono">${expected}</td>
       <td><button class="try" data-case="${i}">Try</button></td>
@@ -365,9 +484,14 @@ function renderTestTable() {
 
 function loadCase(tc) {
   state = tc.inputs.map(([b, v]) => ({ base: b, raw: v }));
-  op = tc.op;
-  opsEl.querySelectorAll(".op").forEach(b =>
-    b.setAttribute("aria-pressed", b.dataset.op === op));
+  setMode(tc.mode === "expr" ? "expr" : "chain");
+  if (mode === "chain") {
+    op = tc.op;
+    opsEl.querySelectorAll(".op").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.op === op));
+  } else {
+    exprInput.value = tc.formula;
+  }
   syncCountButtons();
   buildRows();
   refreshResult();
@@ -375,12 +499,19 @@ function loadCase(tc) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function renderSample() {
-  const tc = TEST_CASES.find(c => c.sample) || TEST_CASES[0];
-  const values = tc.inputs.map(([b, v]) => parseValue(v, b));
-  const result = applyOperation(values, tc.op);
-  const opName = { "+": "addition (+)", "-": "subtraction (-)", "*": "multiplication (x)", "/": "division (/)" }[tc.op];
+/** Plain-text equivalent of renderFormulaHTML(), for the sample-output panels. */
+function renderFormulaText(tokens, mapVar) {
+  return tokens.map(t => {
+    if (t.type === "(" || t.type === ")") return t.type;
+    if (t.type === "op") return OP_SYMBOL[t.op];
+    if (t.type === "var") return mapVar(t.name);
+    if (t.type === "num") return t.text;
+    return "";
+  }).join(" ");
+}
 
+/** Header + per-input conversion block shared by every sample panel. */
+function sampleInputLines(tc, values) {
   const lines = [];
   lines.push("  NUMBER SYSTEM CONVERTER AND ARITHMETIC CALCULATOR");
   lines.push("  " + "=".repeat(50));
@@ -395,6 +526,17 @@ function renderSample() {
     lines.push(`     HEX = ${toBase(dec, 16)}`);
     lines.push("");
   });
+  return lines;
+}
+
+/** Sample 1 — Simple chain mode, run start to finish. */
+function renderSampleChain(tc) {
+  const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+  const result = applyOperation(values, tc.op);
+  const opName = { "+": "addition (+)", "-": "subtraction (-)", "*": "multiplication (x)", "/": "division (/)" }[tc.op];
+
+  const lines = sampleInputLines(tc, values);
+  lines.push("  Mode: Simple chain");
   lines.push("  Operation: " + opName);
   lines.push("  Common representation (decimal): " +
     values.map(v => toBase(v, 10)).join(` ${OP_SYMBOL[tc.op]} `) + " = " + toBase(result, 10));
@@ -409,6 +551,81 @@ function renderSample() {
   document.getElementById("sampleOut").textContent = lines.join("\n");
 }
 
+/** Sample 2 — Expression mode: parentheses + mixed precedence, worked through. */
+function renderSampleExpr(tc) {
+  const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+  const varValues = {};
+  values.forEach((v, idx) => { varValues[String.fromCharCode(97 + idx)] = v; });
+  const tokens = tokenizeFormula(tc.formula);
+  const ast = parseFormulaTokens(tokens);
+  const result = evaluateFormulaAst(ast, varValues);
+
+  const lines = sampleInputLines(tc, values);
+  lines.push("  Mode: Expression");
+  lines.push("  Formula (a, b, c, ... = inputs in order):  " + tc.formula);
+  lines.push("  With original values:  " +
+    renderFormulaText(tokens, name => {
+      const idx = name.charCodeAt(0) - 97;
+      const [b, v] = tc.inputs[idx];
+      return `${v}(${b})`;
+    }));
+  lines.push("  Common representation (decimal):  " +
+    renderFormulaText(tokens, name => toBase(varValues[name], 10)) + " = " + toBase(result, 10));
+  lines.push("  RESULT");
+  lines.push("     BIN = " + toBase(result, 2));
+  lines.push("     OCT = " + toBase(result, 8));
+  lines.push("     DEC = " + toBase(result, 10));
+  lines.push("     HEX = " + toBase(result, 16));
+
+  document.getElementById("sampleOutExpr").textContent = lines.join("\n");
+}
+
+/** Sample 3 — a run that trips an arithmetic error, to show the error handling in action. */
+function renderSampleError(tc) {
+  const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+  const lines = sampleInputLines(tc, values);
+
+  if (tc.mode === "expr") {
+    lines.push("  Mode: Expression");
+    lines.push("  Formula (a, b, c, ... = inputs in order):  " + tc.formula);
+  } else {
+    const opName = { "+": "addition (+)", "-": "subtraction (-)", "*": "multiplication (x)", "/": "division (/)" }[tc.op];
+    lines.push("  Mode: Simple chain");
+    lines.push("  Operation: " + opName);
+    lines.push("  Expression:  " + tc.inputs.map(([b, v]) => `${v}(${b})`).join(` ${OP_SYMBOL[tc.op]} `));
+  }
+
+  let message = "(no error — this case did not fail)";
+  try {
+    if (tc.mode === "expr") {
+      const varValues = {};
+      values.forEach((v, idx) => { varValues[String.fromCharCode(97 + idx)] = v; });
+      evaluateFormulaAst(parseFormulaTokens(tokenizeFormula(tc.formula)), varValues);
+    } else {
+      applyOperation(values, tc.op);
+    }
+  } catch (err) {
+    message = err.message;
+  }
+
+  lines.push("");
+  lines.push("  RESULT");
+  lines.push("     ERROR: " + message);
+  lines.push("     (calculation stopped — Step 3 shows this same message)");
+
+  document.getElementById("sampleOutError").textContent = lines.join("\n");
+}
+
+function renderSamples() {
+  const chainCase = TEST_CASES.find(c => c.sample) || TEST_CASES.find(c => c.mode !== "expr");
+  const exprCase  = TEST_CASES.find(c => c.sampleExpr);
+  const errorCase = TEST_CASES.find(c => c.sampleError);
+
+  if (chainCase) renderSampleChain(chainCase);
+  if (exprCase) renderSampleExpr(exprCase);
+  if (errorCase) renderSampleError(errorCase);
+}
+
 /* ============================================================
    Init
    ============================================================ */
@@ -416,4 +633,4 @@ syncCountButtons();
 buildRows();
 refreshResult();
 renderTestTable();
-renderSample();
+renderSamples();

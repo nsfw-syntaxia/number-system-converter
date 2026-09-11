@@ -153,8 +153,9 @@ a { color: var(--purple-ink); font-weight: 700; }
 #view-doc .block:nth-of-type(1) h2 .n { background: var(--yellow); }
 #view-doc .block:nth-of-type(2) h2 .n { background: var(--lime); }
 #view-doc .block:nth-of-type(3) h2 .n { background: var(--cyan); }
-#view-doc .block:nth-of-type(4) h2 .n { background: var(--pink); }
-#view-doc .block:nth-of-type(5) h2 .n { background: var(--purple); }
+#view-doc .block:nth-of-type(4) h2 .n { background: var(--orange); }
+#view-doc .block:nth-of-type(5) h2 .n { background: var(--pink); }
+#view-doc .block:nth-of-type(6) h2 .n { background: var(--purple); }
 
 /* ---------- locked steps ---------- */
 .lockable { position: relative; }
@@ -295,6 +296,32 @@ a { color: var(--purple-ink); font-weight: 700; }
 .op[data-op="-"][aria-pressed="true"] { background: var(--orange); }
 .op[data-op="*"][aria-pressed="true"] { background: var(--purple); }
 .op[data-op="/"][aria-pressed="true"] { background: var(--cyan); }
+
+/* ---------- operation mode toggle + expression field ---------- */
+.mode-toggle { display: inline-flex; border: 2px solid var(--edge); border-radius: 11px; overflow: hidden; box-shadow: 3px 3px 0 var(--edge); margin-bottom: 18px; }
+.mode-btn {
+  border: 0; border-right: 2px solid var(--edge); background: var(--card); color: var(--text-soft);
+  font-family: var(--display); font-weight: 600; font-size: .88rem; padding: 9px 16px; cursor: pointer;
+}
+.mode-btn:last-child { border-right: 0; }
+.mode-btn:hover[aria-pressed="false"] { background: var(--app); }
+.mode-btn[aria-pressed="true"] { background: var(--purple); color: var(--ink-bright); }
+
+.hint.small { font-size: .88rem; margin: 12px 0 0; max-width: none; }
+
+.var-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.var-chip {
+  display: flex; align-items: center; gap: 8px; border: 2px solid var(--edge); border-radius: 10px;
+  padding: 6px 12px 6px 8px; box-shadow: 2px 2px 0 var(--edge); background: var(--card);
+}
+.var-chip .letter {
+  display: inline-flex; align-items: center; justify-content: center; width: 1.6em; height: 1.6em;
+  border: 2px solid var(--edge); border-radius: 7px; background: var(--yellow); color: var(--ink-bright);
+  font-family: var(--mono); font-weight: 700; text-transform: lowercase;
+}
+.var-chip .src { font-size: .8rem; font-weight: 700; color: var(--text-soft); }
+
+.expr-field input { text-transform: none; }
 
 /* ---------- result ---------- */
 .expr {
