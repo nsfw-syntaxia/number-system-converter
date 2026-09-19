@@ -26,6 +26,10 @@
     </dl>
   </header>
 
+  <p class="credit"><strong>Number System Converter and Arithmetic Calculator &mdash; System Development Activity</strong>
+    <span class="dot">&bull;</span> <strong>Prepared by Trixie T. Dolera</strong>
+    <span class="dot">&bull;</span> <strong>CPE463 H2</strong></p>
+
   <nav class="tabs" role="tablist" aria-label="Views">
     <button id="tab-calc" role="tab" aria-selected="true" aria-controls="view-calc">Calculator</button>
     <button id="tab-doc" role="tab" aria-selected="false" aria-controls="view-doc">Documentation</button>
@@ -112,10 +116,49 @@
       </div>
     </div>
 
+    <div class="block lockable locked" id="step-comp">
+      <h2><span class="n">4</span> Complements &amp; subtraction</h2>
+      <p class="hint">The 1&rsquo;s and 2&rsquo;s complement of every input in all four bases, then
+        <code>v1 &minus; v2 &minus; v3 &hellip;</code> worked out by adding complements.</p>
+      <div class="size-row">
+        <span class="size-label">Word size</span>
+        <div class="size-toggle" id="wordSize" role="group" aria-label="Word size in bits">
+          <button class="size-btn" data-size="auto" aria-pressed="true">Auto</button>
+          <button class="size-btn" data-size="8" aria-pressed="false">8-bit</button>
+          <button class="size-btn" data-size="16" aria-pressed="false">16-bit</button>
+          <button class="size-btn" data-size="32" aria-pressed="false">32-bit</button>
+        </div>
+        <span class="size-info" id="wordInfo" aria-live="polite"></span>
+      </div>
+      <div id="compBody"></div>
+      <div class="lock-veil">
+        <div class="lock-badge">
+          <div class="tape"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2.5" fill="#FFD44D"></rect>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            <circle cx="12" cy="15" r="1.6" fill="currentColor"></circle>
+            <path d="M12 16.4v2.2"></path>
+          </svg>
+          <p class="lock-title">Locked</p>
+          <p class="lock-sub" id="compLockSub">Finish Step 1 to unlock</p>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <!-- ============ DOCUMENTATION ============ -->
   <section id="view-doc" role="tabpanel" aria-labelledby="tab-doc" hidden>
+
+    <aside class="doc-toolbar">
+      <button type="button" class="export-btn" id="exportPdf">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>
+        Export PDF
+      </button>
+      <p class="hint small">Opens the print dialog with the report laid out for A4 &mdash; choose <strong>Save as PDF</strong>
+        as the destination.</p>
+    </aside>
 
     <div class="block prose">
       <h2><span class="n">1</span> System requirements</h2>
@@ -131,30 +174,38 @@
         <li>Expressions follow standard <strong>operator precedence</strong> (&times; and &divide; run before + and &minus;) and <strong>left-to-right associativity</strong> for operators that share a precedence level; parentheses override both.</li>
         <li>Inputs of different bases are converted to a <strong>common representation (decimal)</strong> before any operation runs.</li>
         <li>Output shows the expression using the <em>original</em> input values, the same expression with each variable substituted by its decimal value, and the final result in binary, octal, decimal, and hexadecimal.</li>
+        <li><strong>Complements</strong> &mdash; for every whole-number input, show its <strong>1&rsquo;s complement</strong> (every bit flipped) and <strong>2&rsquo;s complement</strong> (1&rsquo;s complement + 1) in binary, octal, decimal, and hexadecimal.</li>
+        <li>Complements are taken in a fixed-width <strong>word</strong> chosen by the user: <em>Auto</em> (smallest multiple of 4 bits, at least 8, that holds every value and a sign bit), or 8, 16, or 32 bits.</li>
+        <li><strong>Subtraction using complements</strong> &mdash; <code>v1 &minus; v2 &minus; v3 &hellip;</code> is worked out left to right by <em>adding</em> the complement of each subtrahend, once with the <strong>1&rsquo;s complement method</strong> (a carry out of the top bit is added back &mdash; the end-around carry) and once with the <strong>2&rsquo;s complement method</strong> (the carry out is dropped). No carry means the result is negative and is stored in complement form; the sign bit shows it.</li>
+        <li>Every complement subtraction is checked against plain subtraction, so a word that is too small is reported instead of giving a wrong answer.</li>
         <li>Invalid input, missing input, division by zero, and malformed expressions are all <strong>caught and reported</strong> without crashing &mdash; see <em>Arithmetic error handling</em> below.</li>
       </ul>
       <h3>Non-functional requirements</h3>
       <ul>
         <li>Single page, no installation, runs in any modern browser.</li>
         <li>Values are stored as exact fractions (BigInt numerator / denominator), so conversion and arithmetic never lose precision. Repeating expansions are shown truncated.</li>
-        <li>Conversions and the result update immediately as inputs change.</li>
-        <li>Steps 2 and 3 stay locked until every input number is valid, so the flow is followed in order.</li>
+        <li>Conversions, the result, and the complement workings update immediately as inputs or the word size change.</li>
+        <li>Steps 2, 3, and 4 stay locked until every input number is valid, so the flow is followed in order.</li>
+        <li>The Documentation tab can be exported to a neatly paginated <strong>PDF report</strong> directly from the browser (cover page, one section per page, tables and figures never split across pages).</li>
       </ul>
       <h3>Arithmetic error handling</h3>
       <p>Every error is caught before it reaches the result and shown inline in a highlighted panel instead of a stack trace or a blank screen. The calculation simply does not run until the problem is fixed.</p>
       <div class="tc-wrap">
-        <table class="tc">
+        <table class="tc errs">
           <thead><tr><th>Scenario</th><th>Detected in</th><th>Message shown to the user</th></tr></thead>
           <tbody>
-            <tr><td>Digit outside the selected base's digit set</td><td class="mono">parseValue()</td><td>&ldquo;&lt;Base&gt; uses digits &hellip;&rdquo;</td></tr>
-            <tr><td>Input left empty</td><td class="mono">parseValue()</td><td>Row stays neutral; Steps 2&ndash;3 stay locked</td></tr>
-            <tr><td>Division by zero &mdash; chain <em>or</em> expression mode</td><td class="mono">ratDiv()</td><td>&ldquo;Division by zero is undefined &mdash; change the divisor.&rdquo;</td></tr>
-            <tr><td>Empty formula</td><td class="mono">evaluateFormula()</td><td>&ldquo;Enter a formula to evaluate, e.g. (a + b &minus; c) * d.&rdquo;</td></tr>
-            <tr><td>Unrecognised character in a formula</td><td class="mono">tokenizeFormula()</td><td>&ldquo;Unexpected character &ldquo;&hellip;&rdquo; in the formula.&rdquo;</td></tr>
-            <tr><td>Missing or extra parenthesis</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;Missing a closing )&hellip;&rdquo; / &ldquo;Unmatched )&hellip;&rdquo;</td></tr>
-            <tr><td>Two values with no operator between them</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;Unexpected &hellip; &mdash; did you forget an operator?&rdquo;</td></tr>
-            <tr><td>Formula ends after an operator</td><td class="mono">parseFormulaTokens()</td><td>&ldquo;The formula ends unexpectedly &hellip;&rdquo;</td></tr>
-            <tr><td>Formula uses a letter beyond the current inputs (e.g. &ldquo;e&rdquo; with only 3 inputs)</td><td class="mono">evaluateFormula()</td><td>&ldquo;Variable &ldquo;e&rdquo; is not defined &mdash; this run has inputs a&ndash;c.&rdquo;</td></tr>
+            <tr><td>Digit outside the selected base's digit set</td><td class="mono nw">parseValue()</td><td>&ldquo;&lt;Base&gt; uses digits &hellip;&rdquo;</td></tr>
+            <tr><td>Input left empty</td><td class="mono nw">parseValue()</td><td>Row stays neutral; Steps 2&ndash;4 stay locked</td></tr>
+            <tr><td>Division by zero &mdash; chain <em>or</em> expression mode</td><td class="mono nw">ratDiv()</td><td>&ldquo;Division by zero is undefined &mdash; change the divisor.&rdquo;</td></tr>
+            <tr><td>Empty formula</td><td class="mono nw">evaluateFormula()</td><td>&ldquo;Enter a formula to evaluate, e.g. (a + b &minus; c) * d.&rdquo;</td></tr>
+            <tr><td>Unrecognised character in a formula</td><td class="mono nw">tokenizeFormula()</td><td>&ldquo;Unexpected character &ldquo;&hellip;&rdquo; in the formula.&rdquo;</td></tr>
+            <tr><td>Missing or extra parenthesis</td><td class="mono nw">parseFormulaTokens()</td><td>&ldquo;Missing a closing )&hellip;&rdquo; / &ldquo;Unmatched )&hellip;&rdquo;</td></tr>
+            <tr><td>Two values with no operator between them</td><td class="mono nw">parseFormulaTokens()</td><td>&ldquo;Unexpected &hellip; &mdash; did you forget an operator?&rdquo;</td></tr>
+            <tr><td>Formula ends after an operator</td><td class="mono nw">parseFormulaTokens()</td><td>&ldquo;The formula ends unexpectedly &hellip;&rdquo;</td></tr>
+            <tr><td>Formula uses a letter beyond the current inputs (e.g. &ldquo;e&rdquo; with only 3 inputs)</td><td class="mono nw">evaluateFormula()</td><td>&ldquo;Variable &ldquo;e&rdquo; is not defined &mdash; this run has inputs a&ndash;c.&rdquo;</td></tr>
+            <tr><td>Fractional input in complement subtraction</td><td class="mono nw">complementSubtraction()</td><td>&ldquo;Complement subtraction needs whole numbers &mdash; input 1 has a fractional part.&rdquo;</td></tr>
+            <tr><td>Value too large for the chosen word size</td><td class="mono nw">complementWidth()</td><td>&ldquo;These values need at least 9 bits &hellip; so a 8-bit word is too small &mdash; choose a larger word size.&rdquo;</td></tr>
+            <tr><td>Complement result disagrees with plain subtraction (overflow)</td><td class="mono nw">chainSubtract()</td><td>&ldquo;The 8-bit word overflowed at step 2 &mdash; choose a larger word size.&rdquo;</td></tr>
           </tbody>
         </table>
       </div>
@@ -228,6 +279,49 @@
           frac &larr; frac - floor(frac)
 
   <span class="kw">RETURN</span> sign + digits</pre>
+      <p class="hint" style="margin-top:18px;">Complements and subtraction by complement run after the conversions,
+        on the same decimal values. The word size <code>w</code> is chosen first, then every value is stored as a
+        <code>w</code>-bit pattern:</p>
+      <pre class="code"><span class="cm">// w = word size in bits.  Patterns are integers 0 .. 2^w - 1.
+// system = 1 (1's complement) or 2 (2's complement)</span>
+
+<span class="kw">FUNCTION</span> CHOOSE_WORD(values, choice)
+  need &larr; 1 + longest bit length among every whole value and every running result
+  <span class="kw">IF</span> choice = AUTO <span class="kw">THEN RETURN</span> max(8, need rounded up to a multiple of 4)
+  <span class="kw">IF</span> need &gt; choice <span class="kw">THEN THROW</span> "word too small"
+  <span class="kw">RETURN</span> choice
+
+<span class="kw">FUNCTION</span> ONES(p, w)    <span class="kw">RETURN</span> p XOR (2^w - 1)             <span class="cm">// flip every bit</span>
+<span class="kw">FUNCTION</span> TWOS(p, w)    <span class="kw">RETURN</span> (ONES(p, w) + 1) MOD 2^w    <span class="cm">// flip, then add 1</span>
+
+<span class="kw">FUNCTION</span> ENCODE(v, w, system)                 <span class="cm">// how a value is stored</span>
+  <span class="kw">IF</span> v &gt;= 0 <span class="kw">THEN RETURN</span> v
+  <span class="kw">IF</span> system = 1 <span class="kw">THEN RETURN</span> 2^w - 1 - |v|         <span class="cm">// 1's complement of |v|</span>
+  <span class="kw">RETURN</span> 2^w - |v|                          <span class="cm">// 2's complement of |v|</span>
+
+<span class="kw">FUNCTION</span> SUBTRACT_STEP(A, B, w, system)       <span class="cm">// A - B by adding a complement</span>
+  negB &larr; (system = 1) ? ONES(B, w) : TWOS(B, w)
+  sum  &larr; A + negB
+  carry &larr; sum &gt;= 2^w ; sum &larr; sum MOD 2^w
+  <span class="kw">IF</span> carry <span class="kw">AND</span> system = 1 <span class="kw">THEN</span> sum &larr; sum + 1     <span class="cm">// end-around carry</span>
+                                              <span class="cm">// system 2: the carry is dropped</span>
+  <span class="kw">IF</span> top bit of sum = 0 <span class="kw">THEN</span> value &larr; sum          <span class="cm">// positive</span>
+  <span class="kw">ELSE</span> value &larr; -(complement of sum)             <span class="cm">// negative</span>
+  <span class="kw">RETURN</span> sum, value
+
+<span class="kw">BEGIN</span> COMPLEMENTS
+  w &larr; CHOOSE_WORD(dec[1..n], choice)
+  <span class="kw">FOR</span> i <span class="kw">FROM</span> 1 <span class="kw">TO</span> n <span class="kw">DO</span>
+      p &larr; ENCODE(dec[i], w, 2)
+      PRINT ONES(p, w) and TWOS(p, w) in BIN / OCT / DEC / HEX
+
+  <span class="kw">FOR</span> system <span class="kw">IN</span> (1, 2) <span class="kw">DO</span>
+      acc &larr; ENCODE(dec[1], w, system)
+      <span class="kw">FOR</span> k <span class="kw">FROM</span> 2 <span class="kw">TO</span> n <span class="kw">DO</span>
+          acc, value &larr; SUBTRACT_STEP(acc, ENCODE(dec[k], w, system), w, system)
+          <span class="kw">IF</span> value &ne; (dec[1] - ... - dec[k]) <span class="kw">THEN THROW</span> "word overflowed"
+      PRINT acc in BIN / OCT / DEC / HEX, and value
+<span class="kw">END</span></pre>
       <p class="hint" style="margin-top:18px;">Expression mode replaces the single READ op / APPLY loop above with a small
         recursive-descent parser so the user can mix operators and parentheses freely. Grammar, lowest to highest
         precedence:</p>
@@ -345,11 +439,53 @@ flowchart TD
     J5 -- Yes --> L2([Return result])
 </pre>
       </div>
+      <p class="hint" style="margin-top:18px;">Complements of the inputs:</p>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A3([Start]) --> B3[/Read valid inputs dec_1..n and the word size choice/]
+    B3 --> C3["w = CHOOSE_WORD(dec_1..n, choice)"]
+    C3 --> D3{Every value fits<br/>in w bits?}
+    D3 -- No --> E3[/Show 'word too small'/]
+    E3 --> Z3([End])
+    D3 -- Yes --> F3["For each whole input i:<br/>p = pattern(dec_i)<br/>ones = flip every bit of p<br/>twos = ones + 1"]
+    F3 --> G3[/Show ones and twos in BIN, OCT, DEC, HEX/]
+    G3 --> H3{All inputs<br/>whole numbers?}
+    H3 -- No --> I3[/Show 'whole numbers only'/]
+    I3 --> Z3
+    H3 -- Yes --> J3(["Subtraction by complement"])
+</pre>
+      </div>
+      <p class="hint" style="margin-top:18px;">Subtraction by complement, expanded (run once with the 1&rsquo;s method and once with the 2&rsquo;s method):</p>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A4(["Start: whole values dec_1..n, word size w"]) --> D4["acc = pattern(dec_1) ; k = 2"]
+    D4 --> E4{k &lt;= n?}
+    E4 -- No --> F4[/Show final pattern in BIN, OCT, DEC, HEX<br/>and its signed value/]
+    F4 --> Z4([End])
+    E4 -- Yes --> G4["negB = complement of pattern(dec_k)<br/>1's: flip bits | 2's: flip bits + 1<br/>sum = acc + negB"]
+    G4 --> I4{Carry out of<br/>the top bit?}
+    I4 -- "Yes, 1's method" --> K4["sum = sum + 1<br/>(end-around carry)"]
+    I4 -- "Yes, 2's method" --> L4["drop the carry"]
+    I4 -- No --> M4{Sign bit of sum = 1?}
+    K4 --> M4
+    L4 --> M4
+    M4 -- Yes --> N4["negative: magnitude =<br/>complement of sum"]
+    M4 -- No --> O4["positive: value = sum"]
+    N4 --> P4{Matches plain<br/>subtraction?}
+    O4 --> P4
+    P4 -- No --> Q4[/Show 'word overflowed'/]
+    Q4 --> Z4
+    P4 -- Yes --> R4["acc = sum ; k = k + 1"]
+    R4 --> E4
+</pre>
+      </div>
     </div>
 
     <div class="block prose">
       <h2><span class="n">4</span> Program implementation</h2>
-      <p>No build step or framework &mdash; six plain <code>&lt;script&gt;</code> files, loaded in dependency order, with the
+      <p>No build step or framework &mdash; seven plain <code>&lt;script&gt;</code> files, loaded in dependency order, with the
          calculation logic kept free of DOM code so it can be read (or unit-tested) on its own.</p>
       <h3>Modules</h3>
       <ul>
@@ -362,11 +498,59 @@ flowchart TD
         <li><code>js/expression.js</code> &mdash; <code>tokenizeFormula()</code>, <code>parseFormulaTokens()</code> (the recursive-descent
             parser that implements precedence and left associativity), <code>evaluateFormulaAst()</code>, and
             <code>renderFormulaHTML()</code> for <strong>Expression</strong> mode.</li>
+        <li><code>js/complement.js</code> &mdash; <code>complementWidth()</code> (word size), <code>onesComplement()</code> /
+            <code>twosComplement()</code> / <code>complementsOf()</code>, <code>encodeValue()</code> / <code>decodeValue()</code>
+            (how a negative number is stored and read back in each system), <code>subtractStep()</code> (one subtraction by adding
+            a complement), and <code>chainSubtract()</code> / <code>complementSubtraction()</code> (<code>v1 &minus; v2 &minus; &hellip;</code>
+            by both methods, every step checked against plain subtraction).</li>
         <li><code>js/testcases.js</code> &mdash; <code>TEST_CASES</code>, the activity's test matrix: base combinations, fractional
-            values, negative results, expression formulas, and forced error cases.</li>
+            values, negative results, expression formulas, and forced error cases; plus <code>COMPLEMENT_VALUES</code> and
+            <code>COMPLEMENT_CASES</code> for the complement tests.</li>
         <li><code>js/app.js</code> &mdash; UI layer: builds the input rows, wires the mode toggle, validates and renders Steps
-            1&ndash;3, the step-unlock animation, and the Documentation tab (test table, sample output).</li>
+            1&ndash;4, the step-unlock animation, the Documentation tab (test tables, sample output), and the
+            <strong>Export PDF</strong> button.</li>
       </ul>
+      <h3>Calculator interface</h3>
+      <p>The running program, Steps 1&ndash;4, for each operation mode &mdash; screenshots, not a mockup
+         (regenerate them with <code>tools/capture-screenshots.mjs</code>).</p>
+
+      <figure class="shot">
+        <img src="img/chain-inputs.png" alt="Step 1: three inputs (binary, octal, decimal) converted to all four bases">
+        <img src="img/chain-result.png" alt="Steps 2 and 3: Simple chain addition and its result in four bases">
+        <figcaption>Simple chain mode &mdash; <code>1010</code><sub>2</sub> + <code>17</code><sub>8</sub> + <code>25</code><sub>10</sub> = <code>50</code><sub>10</sub>.</figcaption>
+      </figure>
+
+      <figure class="shot">
+        <img src="img/expr-inputs.png" alt="Step 1: four inputs in binary, decimal, hexadecimal and decimal">
+        <img src="img/expr-result.png" alt="Steps 2 and 3: expression (a + b - c) * d and its result">
+        <figcaption>Expression mode &mdash; formula <code>(a + b - c) * d</code> over four inputs, result <code>24</code><sub>10</sub>. Note the variable legend (<code>a</code>&ndash;<code>d</code>) and the precedence note under the field.</figcaption>
+      </figure>
+
+      <h4>Step 4 &mdash; complements and subtraction by complement</h4>
+      <p>Same inputs (<code>11110</code><sub>2</sub> &minus; <code>9</code><sub>10</sub> &minus; <code>A</code><sub>16</sub>) in the
+         automatic 8-bit word. Every step shows B, the complement of B, the sum, what happens to the carry, and the result.</p>
+
+      <figure class="shot">
+        <img src="img/comp-inputs.png" alt="Step 4: 1's and 2's complement of each input in binary, octal, decimal and hexadecimal">
+        <figcaption>Complement of each input in BIN / OCT / DEC / HEX.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/comp-ones-carry.png" alt="Step 4: subtraction using 1's complement with end-around carry">
+        <figcaption>Subtraction using the <strong>1&rsquo;s complement</strong> &mdash; a carry out of the top bit is added back (end-around carry).</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/comp-twos-carry.png" alt="Step 4: subtraction using 2's complement with the carry dropped">
+        <figcaption>Subtraction using the <strong>2&rsquo;s complement</strong> &mdash; the carry out of the top bit is dropped.</figcaption>
+      </figure>
+
+      <p>A negative result (<code>5</code><sub>10</sub> &minus; <code>1010</code><sub>2</sub> &minus; <code>0</code><sub>16</sub> = <code>-5</code>):
+         there is no carry, the sign bit is 1, and the magnitude is recovered by complementing the sum.</p>
+      <figure class="shot">
+        <img src="img/comp-ones-negative.png" alt="Step 4: 1's complement subtraction with a negative result">
+        <img src="img/comp-twos-negative.png" alt="Step 4: 2's complement subtraction with a negative result">
+        <figcaption>Negative result by the 1&rsquo;s complement (top) and 2&rsquo;s complement (bottom) methods.</figcaption>
+      </figure>
+
       <h3>Requirement &rarr; implementation</h3>
       <div class="tc-wrap">
         <table class="tc">
@@ -377,6 +561,11 @@ flowchart TD
             <tr><td>Expressions: different operators + parentheses</td><td class="mono">parseFormulaTokens() &mdash; expression.js</td></tr>
             <tr><td>Operator precedence &amp; associativity</td><td class="mono">expr &rarr; term &rarr; factor &rarr; primary grammar &mdash; expression.js</td></tr>
             <tr><td>Arithmetic error handling</td><td class="mono">ratDiv(), parseValue(), tokenizeFormula(), parseFormulaTokens(), evaluateFormulaAst() &mdash; each throws a descriptive Error that app.js catches and renders in a <code>.note.bad</code> panel</td></tr>
+            <tr><td>1&rsquo;s and 2&rsquo;s complement of every input, in all four bases</td><td class="mono">complementsOf(), formatPattern() &mdash; complement.js</td></tr>
+            <tr><td>Subtraction using 1&rsquo;s complement (end-around carry)</td><td class="mono">subtractStep(&hellip;, 1), chainSubtract() &mdash; complement.js</td></tr>
+            <tr><td>Subtraction using 2&rsquo;s complement (carry dropped)</td><td class="mono">subtractStep(&hellip;, 2), chainSubtract() &mdash; complement.js</td></tr>
+            <tr><td>Word size (Auto / 8 / 16 / 32) and overflow checks</td><td class="mono">complementWidth(), chainSubtract() &mdash; complement.js</td></tr>
+            <tr><td>Export PDF</td><td class="mono">exportPdf(), @media print rules &mdash; app.js, styles.css</td></tr>
             <tr><td>Exact precision</td><td class="mono">BigInt fractions throughout &mdash; rational.js (no floating point in the calculation path)</td></tr>
           </tbody>
         </table>
@@ -390,28 +579,56 @@ flowchart TD
       <div class="tc-wrap">
         <table class="tc">
           <thead>
-            <tr><th>#</th><th>Base mix</th><th>Op / formula</th><th>Inputs (original)</th><th>Expected &mdash; DEC / BIN / OCT / HEX</th><th></th></tr>
+            <tr><th>#</th><th>Base mix</th><th>Op / formula</th><th>Inputs (original)</th><th>Expected &mdash; DEC / BIN / OCT / HEX</th><th class="tryc"></th></tr>
           </thead>
           <tbody id="tcBody"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:26px;">Complements of a single number</h3>
+      <p class="hint">Each number in a fixed word, with its 1&rsquo;s and 2&rsquo;s complement written in all four bases
+        (BIN / OCT / DEC / HEX, zero-padded to the word size).</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead>
+            <tr><th>#</th><th>Number</th><th>Word</th><th>1&rsquo;s complement</th><th>2&rsquo;s complement</th></tr>
+          </thead>
+          <tbody id="tcCompValues"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:26px;">Subtraction using complements</h3>
+      <p class="hint"><code>v1 &minus; v2 &minus; v3</code> by the 1&rsquo;s and 2&rsquo;s complement methods, compared with plain
+        subtraction. Results are shown as <em>pattern (signed value)</em>. Press <strong>Try</strong> to load a case into the
+        calculator.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead>
+            <tr><th>#</th><th>Base mix</th><th>Inputs (original)</th><th>Word</th><th>1&rsquo;s complement</th><th>2&rsquo;s complement</th><th>Plain</th><th class="tryc"></th></tr>
+          </thead>
+          <tbody id="tcCompCases"></tbody>
         </table>
       </div>
     </div>
 
     <div class="block">
       <h2><span class="n">6</span> Sample output</h2>
-      <p class="hint">Three runs of the program: a Simple chain calculation, an Expression-mode calculation with
-        parentheses and mixed precedence, and a run that trips an arithmetic error.</p>
+      <p class="hint">Four runs of the program: a Simple chain calculation, an Expression-mode calculation with
+        parentheses and mixed precedence, a run that trips an arithmetic error, and a complement run with subtraction
+        by the 1&rsquo;s and 2&rsquo;s complement methods.</p>
       <h3>Simple chain</h3>
       <div class="sample" id="sampleOut"></div>
       <h3 style="margin-top:22px;">Expression &mdash; precedence &amp; parentheses</h3>
       <div class="sample" id="sampleOutExpr"></div>
       <h3 style="margin-top:22px;">Arithmetic error</h3>
       <div class="sample" id="sampleOutError"></div>
+      <h3 style="margin-top:22px;">Complements &amp; subtraction by complement</h3>
+      <div class="sample-set" id="sampleOutComp"></div>
     </div>
 
   </section>
 
-  <footer class="foot">Radix Workbench &mdash; integer arithmetic; negative results are shown in sign&ndash;magnitude form.</footer>
+  <footer class="foot">Radix Workbench &mdash; negative results are shown in sign&ndash;magnitude form; complements work on whole numbers in a fixed-width word.</footer>
 
 </div>
 
@@ -428,23 +645,26 @@ flowchart TD
       flowchart: { useMaxWidth: true, htmlLabels: true }
     });
   }
-  let flowchartRendered = false;
-  async function renderFlowchart() {
-    if (flowchartRendered || !window.mermaid) return;
+  let flowchartJob = null;     // the in-flight / finished render, so callers can await it
+  function renderFlowchart() {
+    if (flowchartJob || !window.mermaid) return flowchartJob;
     const nodes = document.querySelectorAll("pre.mermaid");
-    if (!nodes.length) return;
-    flowchartRendered = true;
-    if (document.fonts && document.fonts.ready) {
-      try { await document.fonts.ready; } catch (e) { /* ignore */ }
-    }
-    try { await mermaid.run({ nodes }); }
-    catch (e) { flowchartRendered = false; }
+    if (!nodes.length) return null;
+    flowchartJob = (async () => {
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (e) { /* ignore */ }
+      }
+      try { await mermaid.run({ nodes }); }
+      catch (e) { flowchartJob = null; }
+    })();
+    return flowchartJob;
   }
 </script>
 <script defer src="js/rational.js"></script>
 <script defer src="js/converter.js"></script>
 <script defer src="js/arithmetic.js"></script>
 <script defer src="js/expression.js"></script>
+<script defer src="js/complement.js"></script>
 <script defer src="js/testcases.js"></script>
 <script defer src="js/app.js"></script>
 </body>

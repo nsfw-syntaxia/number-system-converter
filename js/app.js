@@ -1,6 +1,7 @@
 /* ============================================================
    app.js — UI layer: rendering, events, step-unlock, init
-   Depends on: rational.js, converter.js, arithmetic.js, testcases.js
+   Depends on: rational.js, converter.js, arithmetic.js, expression.js,
+               complement.js, testcases.js
    ============================================================ */
 
 const MIN_INPUTS = 3;
@@ -14,6 +15,7 @@ let state = [
 ];
 let op = "+";
 let mode = "chain";     // "chain" (Step 2 operation buttons) or "expr" (free-form formula)
+let wordChoice = "auto"; // Step 4 word size: "auto" | 8 | 16 | 32
 
 /* ---- cached DOM ---- */
 const inputList   = document.getElementById("inputList");
@@ -25,6 +27,9 @@ const modeChainEl = document.getElementById("modeChain");
 const modeExprEl  = document.getElementById("modeExpr");
 const exprInput   = document.getElementById("exprInput");
 const exprMsg     = document.getElementById("exprMsg");
+const compBlock   = document.getElementById("step-comp");
+const compBody    = document.getElementById("compBody");
+const wordInfo    = document.getElementById("wordInfo");
 
 /* ============================================================
    Step 1 — input rows
@@ -154,7 +159,7 @@ function refreshRow(i) {
 }
 
 /* ============================================================
-   Step unlocking — Steps 2 and 3 stay locked until every
+   Step unlocking — Steps 2, 3 and 4 stay locked until every
    input number is present and valid.
    ============================================================ */
 function updateLocks() {
@@ -166,8 +171,10 @@ function updateLocks() {
     allReady ? "Unlocked" : `${ready} of ${total} numbers ready`;
   document.getElementById("resultLockSub").textContent =
     allReady ? "Unlocked" : "Finish Step 1 to unlock";
+  document.getElementById("compLockSub").textContent =
+    allReady ? "Unlocked" : "Finish Step 1 to unlock";
 
-  [opBlock, resultBlock].forEach(block => {
+  [opBlock, resultBlock, compBlock].forEach(block => {
     const wasLocked = block.classList.contains("locked");
     block.classList.toggle("locked", !allReady);
     if (wasLocked && allReady) {
@@ -286,6 +293,8 @@ function refreshResult() {
     }
   }
 
+  refreshComplements(problem ? null : values);
+
   if (problem) {
     const exprLine = mode === "expr"
       ? renderFormulaHTMLSafe()
@@ -366,6 +375,158 @@ function refreshExpressionResult(values) {
   const decimalLine = renderFormulaHTML(tokens, name => toBase(varValues[name], 10));
   resultBody.innerHTML = buildResultHTML(exprLine, decimalLine, result);
 }
+
+/* ============================================================
+   Step 4 — complements and subtraction by complement
+   ============================================================ */
+const SYSTEM_NAME = { 1: "1's", 2: "2's" };
+
+/** Plain-text rows for one subtraction step (shared by the HTML and text renderers). */
+function stepRows(st, w, system) {
+  const nm = SYSTEM_NAME[system];
+  const bin = (p) => formatPattern(p, w, 2);
+  const rows = [
+    { label: "A (running value)", bits: bin(st.pa), note: "= " + st.aValue },
+    { label: "B (subtrahend)", bits: bin(st.pb), note: "= " + st.bValue },
+    { label: nm + " complement of B", bits: bin(st.negB), note: "= -B" },
+    { label: "A + complement", carry: st.carry ? 1 : 0, bits: bin(st.sum),
+      note: !st.carry ? "carry out = 0"
+        : system === 1 ? "carry out = 1 → added back" : "carry out = 1 → dropped" }
+  ];
+  if (st.endAround) {
+    rows.push({ label: "+ end-around carry", bits: bin(st.result), note: "sum + 1" });
+  }
+
+  let verdict;
+  if ((st.result >> BigInt(w - 1)) === 0n) {
+    verdict = "sign 0 → positive = " + st.value;
+  } else if (st.negZero) {
+    verdict = "sign 1, all ones = -0 = 0";
+  } else {
+    verdict = "sign 1 → negative; complement of sum = " +
+      bin(complementOf(st.result, w, system)) + " = " + (-st.value) + ", so " + st.value;
+  }
+  rows.push({ label: "Result", bits: bin(st.result), note: verdict, result: true });
+  return rows;
+}
+
+/** All steps plus the final pattern for the 1's or the 2's method. */
+function walkthroughHTML(run, w, system) {
+  const steps = run.steps.map((st, idx) => {
+    const rows = stepRows(st, w, system).map(r => `
+      <tr class="${r.result ? "res" : ""}">
+        <th scope="row">${r.label}</th>
+        <td class="bits">${r.carry === undefined ? "" : `<span class="carry${r.carry ? "" : " off"}">${r.carry}</span>`}${r.bits}</td>
+        <td class="why">${r.note}</td>
+      </tr>`).join("");
+    return `<div class="cstep">
+      <div class="cstep-head"><span class="k">Step ${idx + 1}</span> ${st.aValue} ${OP_SYMBOL["-"]} ${st.bValue}</div>
+      <table class="cs"><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join("");
+
+  const chips = BASE_ORDER.map(b => `<div class="chip">
+      <div class="lab">${BASES[b].name}</div>
+      <div class="val">${formatPattern(run.pattern, w, b)}<sub>${b}</sub></div>
+    </div>`).join("");
+
+  const meaning = run.negZero
+    ? "all ones = -0, which equals 0"
+    : "as a signed number = " + run.value;
+
+  return `${steps}
+    <div class="cfinal">
+      <div class="cfinal-head">Final ${w}-bit pattern (${SYSTEM_NAME[system]} complement method) — ${meaning}</div>
+      <div class="chips">${chips}</div>
+    </div>`;
+}
+
+/** One input's number / 1's complement / 2's complement rows, in all four bases. */
+function complementCardHTML(i, value, w) {
+  const s = state[i];
+  const head = `<div class="chead"><span class="idx">${String(i + 1).padStart(2, "0")}</span>
+      <span class="mono">${s.raw.trim().toUpperCase()}<sub>${s.base}</sub> = ${toBase(value, 10)}<sub>10</sub></span></div>`;
+
+  if (!ratIsInt(value)) {
+    return `<div class="ccard">${head}<p class="cnote">Complements are taken on whole numbers — this value has a fractional part, so it is skipped.</p></div>`;
+  }
+
+  const c = complementsOf(value.n, w);
+  const heads = BASE_ORDER.map(b => `<th class="b${b}">${BASES[b].name}</th>`).join("");
+  const cells = (p) => BASE_ORDER.map(b => `<td class="mono">${formatPattern(p, w, b)}</td>`).join("");
+
+  return `<div class="ccard">${head}
+    <table class="ct">
+      <thead><tr><th></th>${heads}</tr></thead>
+      <tbody>
+        <tr><th scope="row">${value.n < 0n ? "Number (2's form)" : "Number"}</th>${cells(c.number)}</tr>
+        <tr><th scope="row">1's complement</th>${cells(c.ones)}</tr>
+        <tr class="two"><th scope="row">2's complement</th>${cells(c.twos)}</tr>
+      </tbody>
+    </table>
+    <p class="cnote">flip every bit → <span class="mono">${formatPattern(c.ones, w, 2)}</span> &nbsp;·&nbsp;
+      add 1 → <span class="mono">${formatPattern(c.twos, w, 2)}</span></p>
+  </div>`;
+}
+
+/** Step 4: word size, complements of every input, and v1 − v2 − … by both methods. */
+function refreshComplements(values) {
+  if (!values) {
+    compBody.innerHTML = "";
+    wordInfo.textContent = "";
+    return;
+  }
+
+  let w;
+  try {
+    w = complementWidth(values, wordChoice);
+  } catch (err) {
+    wordInfo.textContent = "";
+    compBody.innerHTML = `<div class="note bad">${err.message}</div>`;
+    return;
+  }
+  wordInfo.textContent = w + "-bit word" + (wordChoice === "auto" ? " (chosen automatically)" : "");
+
+  const cards = values.map((v, i) => complementCardHTML(i, v, w)).join("");
+  const expression = state
+    .map(s => `${s.raw.trim().toUpperCase()}<sub>${s.base}</sub>`)
+    .join(` ${OP_SYMBOL["-"]} `);
+
+  let subtraction;
+  try {
+    const sub = complementSubtraction(values, w);
+    subtraction = [1, 2].map(system => {
+      const rule = system === 1
+        ? "Add the 1's complement of B. A carry out of the top bit is added back (end-around carry); no carry means the result is negative."
+        : "Add the 2's complement of B. A carry out of the top bit is dropped; no carry means the result is negative.";
+      return `<h3 class="csec">Subtraction using ${SYSTEM_NAME[system]} complement</h3>
+        <p class="cnote">${rule}</p>
+        <div class="csub" id="compSub${system}">${walkthroughHTML(system === 1 ? sub.ones : sub.twos, w, system)}</div>`;
+    }).join("") + `<div class="note">Plain subtraction gives <strong>${sub.direct}</strong> — both methods agree.</div>`;
+  } catch (err) {
+    subtraction = `<h3 class="csec">Subtraction using complements</h3><div class="note bad">${err.message}</div>`;
+  }
+
+  compBody.innerHTML = `
+    <h3 class="csec">Complements of each input</h3>
+    <div class="clist" id="compInputs">${cards}</div>
+    <p class="cnote csum">Subtraction runs left to right: ${expression}</p>
+    ${subtraction}`;
+}
+
+/** Word-size buttons. Also used by loadCase(). */
+function setWordChoice(choice) {
+  wordChoice = choice === "auto" ? "auto" : Number(choice);
+  document.querySelectorAll(".size-btn").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.size === String(wordChoice))));
+}
+
+document.querySelectorAll(".size-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setWordChoice(btn.dataset.size);
+    refreshResult();
+  });
+});
 
 /* ============================================================
    Controls — input count, operation, tabs
@@ -469,11 +630,11 @@ function renderTestTable() {
 
     return `<tr>
       <td class="mono">${String(i + 1).padStart(2, "0")}</td>
-      <td>${tc.mix}</td>
+      <td class="nw">${tc.mix}</td>
       <td class="mono">${isExpr ? tc.formula : OP_SYMBOL[tc.op]}</td>
-      <td class="mono">${originals}</td>
+      <td class="mono nw">${originals}</td>
       <td class="mono">${expected}</td>
-      <td><button class="try" data-case="${i}">Try</button></td>
+      <td class="tryc"><button class="try" data-case="${i}">Try</button></td>
     </tr>`;
   }).join("");
 
@@ -482,11 +643,54 @@ function renderTestTable() {
   });
 }
 
+/** Test tables for Step 4: complements of single numbers, and subtraction by complement. */
+function renderComplementTables() {
+  const four = (p, w) => BASE_ORDER
+    .map(b => `<div>${BASES[b].name} ${formatPattern(p, w, b)}</div>`).join("");
+
+  document.getElementById("tcCompValues").innerHTML = COMPLEMENT_VALUES.map((cv, i) => {
+    const c = complementsOf(parseValue(cv.value, cv.base).n, cv.width);
+    return `<tr>
+      <td class="mono">C${String(i + 1).padStart(2, "0")}</td>
+      <td class="mono">${cv.value}<sub>${cv.base}</sub></td>
+      <td class="mono">${cv.width}-bit</td>
+      <td class="mono cbases">${four(c.ones, cv.width)}</td>
+      <td class="mono cbases">${four(c.twos, cv.width)}</td>
+    </tr>`;
+  }).join("");
+
+  const body = document.getElementById("tcCompCases");
+  body.innerHTML = COMPLEMENT_CASES.map((tc, i) => {
+    const num = "S" + String(i + 1).padStart(2, "0");
+    const originals = tc.inputs.map(([b, v]) => `${v}<sub>${b}</sub>`).join(` ${OP_SYMBOL["-"]} `);
+    const start = `<td class="mono">${num}</td><td class="nw">${tc.mix}</td><td class="mono nw">${originals}</td>`;
+    const tryBtn = `<td class="tryc"><button class="try" data-ccase="${i}">Try</button></td>`;
+
+    try {
+      const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+      const w = complementWidth(values, tc.width || "auto");
+      const sub = complementSubtraction(values, w);
+      const cell = (run) => `${formatPattern(run.pattern, w, 2)} (${run.negZero ? "-0" : run.value})`;
+      return `<tr>${start}<td class="mono nw">${w}-bit${tc.width ? "" : " auto"}</td>
+        <td class="mono">${cell(sub.ones)}</td><td class="mono">${cell(sub.twos)}</td>
+        <td class="mono">${sub.direct}</td>${tryBtn}</tr>`;
+    } catch (err) {
+      return `<tr>${start}<td class="mono nw">${tc.width ? tc.width + "-bit" : "auto"}</td>
+        <td class="mono" colspan="3">Error — ${err.message}</td>${tryBtn}</tr>`;
+    }
+  }).join("");
+
+  body.querySelectorAll(".try").forEach(btn => {
+    btn.addEventListener("click", () => loadCase(COMPLEMENT_CASES[Number(btn.dataset.ccase)]));
+  });
+}
+
 function loadCase(tc) {
   state = tc.inputs.map(([b, v]) => ({ base: b, raw: v }));
+  setWordChoice(tc.width || "auto");
   setMode(tc.mode === "expr" ? "expr" : "chain");
   if (mode === "chain") {
-    op = tc.op;
+    op = tc.op || "-";
     opsEl.querySelectorAll(".op").forEach(b =>
       b.setAttribute("aria-pressed", b.dataset.op === op));
   } else {
@@ -496,7 +700,10 @@ function loadCase(tc) {
   buildRows();
   refreshResult();
   showView("calc");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  // complement cases are about Step 4, so scroll there instead of to the top
+  const target = tc.op || tc.mode ? null : compBlock;
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  else window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 /** Plain-text equivalent of renderFormulaHTML(), for the sample-output panels. */
@@ -616,15 +823,105 @@ function renderSampleError(tc) {
   document.getElementById("sampleOutError").textContent = lines.join("\n");
 }
 
+/** Sample 4 — complements of each input, then subtraction by both methods. Three panels. */
+function renderSampleComplement(tc) {
+  const values = tc.inputs.map(([b, v]) => parseValue(v, b));
+  const w = complementWidth(values, tc.width || "auto");
+  const sub = complementSubtraction(values, w);
+  const bin = (p) => formatPattern(p, w, 2);
+  const allBases = (p) => BASE_ORDER.map(b => `${BASES[b].name} ${formatPattern(p, w, b)}`).join("   ");
+  const shown = tc.inputs.map(([b, v]) => `${v}(${b})`).join(` ${OP_SYMBOL["-"]} `);
+
+  // panel 1: conversions + complements of every input
+  const intro = sampleInputLines(tc, values);
+  intro.push("  Mode: Complements   (word size: " + w + " bits" + (tc.width ? "" : ", auto") + ")");
+  intro.push("");
+  tc.inputs.forEach(([b, v], idx) => {
+    const c = complementsOf(values[idx].n, w);
+    intro.push(`  Input ${idx + 1}:  ${v}(${b})`);
+    intro.push("     number = " + allBases(c.number));
+    intro.push("     1's    = " + allBases(c.ones));
+    intro.push("     2's    = " + allBases(c.twos));
+    intro.push("");
+  });
+
+  // panels 2 and 3: one walkthrough per method
+  const walk = (system, run) => {
+    const lines = [];
+    lines.push(`  Subtraction using ${SYSTEM_NAME[system]} complement:  ${shown}`);
+    run.steps.forEach((st, idx) => {
+      lines.push("");
+      lines.push(`  Step ${idx + 1}:  ${st.aValue} ${OP_SYMBOL["-"]} ${st.bValue}`);
+      stepRows(st, w, system).forEach(r => {
+        const bits = (r.carry === undefined ? "  " : r.carry + " ") + r.bits;
+        lines.push("     " + r.label.padEnd(22) + bits.padEnd(w + 4) + r.note);
+      });
+    });
+    lines.push("");
+    lines.push("  RESULT (" + SYSTEM_NAME[system] + " complement)");
+    lines.push("     " + allBases(run.pattern));
+    lines.push("     signed value = " + (run.negZero ? "-0 (equals 0)" : run.value));
+    return lines;
+  };
+
+  const twos = walk(2, sub.twos);
+  twos.push("");
+  twos.push("  Plain subtraction check:  " + sub.direct + "   (both methods agree)");
+
+  const host = document.getElementById("sampleOutComp");
+  host.innerHTML = "";
+  [intro, walk(1, sub.ones), twos].forEach(lines => {
+    const panel = document.createElement("div");
+    panel.className = "sample";
+    panel.textContent = lines.join("\n");
+    host.appendChild(panel);
+  });
+}
+
 function renderSamples() {
   const chainCase = TEST_CASES.find(c => c.sample) || TEST_CASES.find(c => c.mode !== "expr");
   const exprCase  = TEST_CASES.find(c => c.sampleExpr);
   const errorCase = TEST_CASES.find(c => c.sampleError);
+  const compCase  = COMPLEMENT_CASES.find(c => c.sampleComplement);
 
   if (chainCase) renderSampleChain(chainCase);
   if (exprCase) renderSampleExpr(exprCase);
   if (errorCase) renderSampleError(errorCase);
+  if (compCase) renderSampleComplement(compCase);
 }
+
+/* ============================================================
+   Export PDF — lays the Documentation tab out for print
+   (see the @media print rules in styles.css) and opens the
+   browser's print dialog, where "Save as PDF" makes the file.
+   ============================================================ */
+const REPORT_TITLE = "DOLERA - CPE463 H2 - Radix Workbench";
+
+async function exportPdf() {
+  const button = document.getElementById("exportPdf");
+  button.disabled = true;
+
+  showView("doc");
+  // the flowcharts, web fonts and screenshots must be ready before the page is paginated
+  const images = Array.from(document.images).map(img => img.decode().catch(() => {}));
+  await Promise.all([
+    document.fonts ? document.fonts.ready.catch(() => {}) : null,
+    typeof renderFlowchart === "function" ? renderFlowchart() : null,
+    ...images
+  ]);
+
+  const originalTitle = document.title;
+  document.title = REPORT_TITLE;               // becomes the suggested file name
+  document.body.classList.add("print-report");
+  window.addEventListener("afterprint", () => {
+    document.title = originalTitle;
+    document.body.classList.remove("print-report");
+    button.disabled = false;
+  }, { once: true });
+
+  window.print();
+}
+document.getElementById("exportPdf").addEventListener("click", exportPdf);
 
 /* ============================================================
    Init
@@ -633,4 +930,5 @@ syncCountButtons();
 buildRows();
 refreshResult();
 renderTestTable();
+renderComplementTables();
 renderSamples();

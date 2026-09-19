@@ -27,6 +27,15 @@ Calculator*.
     before + and −) and **left-to-right associativity**, with parentheses overriding both.
 - Operations run on a **common representation (decimal)**, so mixed-base inputs work.
 - Result shown as the **original-value expression** plus the answer in all four bases.
+- **1's and 2's complement** of every whole-number input, written in all four bases, in a
+  fixed-width word (**Auto**, 8, 16, or 32 bits).
+- **Subtraction using complements** — `v1 − v2 − v3 …` worked out step by step by adding the
+  complement of each subtrahend: the **1's complement** method (end-around carry) and the
+  **2's complement** method (carry dropped), with negative results recognised by the sign bit
+  and every step checked against plain subtraction.
+- **Export PDF** — one click on the Documentation tab lays the report out for A4 (cover page with
+  name / course / section, one section per page, no table row, figure, chart or code line split
+  across pages) and opens the print dialog; choose **Save as PDF**.
 - **Binary place-value strip** for the result, covering integer and fractional bits.
 - Values are kept as **exact `BigInt` fractions** (numerator / denominator), so
   conversion and arithmetic never lose precision. Repeating expansions (e.g. `1 ÷ 3`,
@@ -35,12 +44,12 @@ Calculator*.
 - **Arithmetic error handling** — invalid input, empty input, division by zero (chain
   or expression), unmatched parentheses, missing operators, and unknown variables are
   all caught and shown inline; the calculation just doesn't run until it's fixed.
-- **Step-unlock flow** — *Step 2 (operation)* and *Step 3 (result)* stay locked
+- **Step-unlock flow** — *Step 2 (operation)*, *Step 3 (result)* and *Step 4 (complements)* stay locked
   until every input number is valid, then unlock with a small animation.
 - Light / dark theme aware, keyboard accessible, responsive.
 - **Documentation tab**: requirements (incl. error handling), pseudocode (chain +
-  expression evaluation), flowcharts, program implementation notes, test cases, and
-  three sample outputs.
+  expression evaluation, complements), flowcharts, program implementation notes with
+  calculator screenshots, test cases, and four sample outputs.
 
 ---
 
@@ -71,7 +80,10 @@ Repo *Settings → Pages → Deploy from branch → `main` / root*. The app will
 number-system-converter/
 ├── index.html          markup only
 ├── css/
-│   └── styles.css       neubrutalism theme + step-lock styles
+│   └── styles.css       neubrutalism theme, step-lock styles, @media print (PDF export)
+├── img/                 calculator screenshots used in the documentation / PDF
+├── tools/
+│   └── capture-screenshots.mjs   dev-only: regenerates img/ (needs puppeteer-core)
 └── js/
     ├── rational.js      rat() / ratAdd / ratMul … — exact BigInt fractions
     ├── converter.js     BASES metadata, parseValue(), toBaseParts()  — conversion core
@@ -79,11 +91,12 @@ number-system-converter/
     ├── expression.js    tokenizeFormula() / parseFormulaTokens() / evaluateFormulaAst()
     │                    — recursive-descent parser for Expression mode (precedence,
     │                    associativity, parentheses, error handling)
-    ├── testcases.js     TEST_CASES — the activity test matrix (incl. expression + error cases)
+    ├── complement.js    1's / 2's complement, word size, subtraction by complement
+    ├── testcases.js     TEST_CASES + COMPLEMENT_VALUES / COMPLEMENT_CASES (test matrices)
     └── app.js           UI rendering, events, step-unlock, init
 ```
 
-`rational.js`, `converter.js`, `arithmetic.js` and `expression.js` contain **no DOM
+`rational.js`, `converter.js`, `arithmetic.js`, `expression.js` and `complement.js` contain **no DOM
 code** — they are the logic layer and can be reused or unit-tested on their own.
 
 ---
@@ -107,6 +120,21 @@ code** — they are the logic layer and can be reused or unit-tested on their ow
    repeated division, the fractional part by repeated multiplication (stopping when the
    remainder clears or after 24 digits). Negatives use sign–magnitude form.
 
+5. **Complements** — `complementWidth()` picks the word size `w`; a value is stored as a `w`-bit
+   pattern; the **1's complement** flips every bit and the **2's complement** adds 1 to that.
+   `subtractStep()` does one subtraction by adding the complement of the subtrahend — with the
+   1's method a carry out of the top bit is added back (end-around carry), with the 2's method
+   it is dropped; no carry means the result is negative (sign bit 1). Whole numbers only.
+
+---
+
+## Regenerating the screenshots
+
+```bash
+npm install --no-save puppeteer-core
+node tools/capture-screenshots.mjs      # rewrites img/*.png
+```
+
 ---
 
 ## Test cases
@@ -125,6 +153,11 @@ Plus fractional cases (`1010.1₂ + 2.5₁₀ + 1.8₁₆`, `17₈ ÷ 2₁₀ ÷
 cases (`(a + b - c) * d`, `a + b * c` to show precedence with no parentheses, `a / (b - c)`),
 and forced **arithmetic-error** cases (division by zero in both modes, an unmatched
 parenthesis, and an undefined variable).
+
+Complement tests: seven single numbers (C01–C07) with their 1's and 2's complement in all four
+bases, and nine subtraction cases (S01–S09) covering carries at every step, a negative result,
+a 1's-complement `-0`, auto-growing word size, a fixed 8-bit word, and two forced errors
+(value too large for the word, fractional input).
 
 ---
 
