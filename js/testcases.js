@@ -119,6 +119,14 @@ const BCD_CASES = [
   { mix: "DEC + DEC + DEC", bcd: "add", inputs: [[10, "58"], [10, "47"], [10, "36"]] },              // 58 + 47 + 36 = 141 (carries)
   { mix: "OCT + HEX + DEC", bcd: "add", inputs: [[8, "77"], [16, "A"], [10, "9"]] },                // 63 + 10 + 9 = 82
 
+  // --- signed words with negative inputs (sign digit 9) ---
+  { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "-5"], [10, "30"]] },                // -5 - 30 = -35
+  { mix: "DEC + BIN + HEX", bcd: "add", inputs: [[10, "-12"], [2, "1111"], [16, "A"]] },    // -12 + 15 + 10 = 13
+
+  // --- unsigned words: OVERFLOW and NEGATIVE flags ---
+  { mix: "DEC + DEC + DEC", bcd: "add", inputs: [[10, "58"], [10, "47"], [10, "36"]], digits: 2, signed: false }, // 105 overflows 2 digits
+  { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "12"], [10, "30"]], signed: false },   // 12 - 30 -> NEGATIVE flag
+
   // --- forced errors ---
   { mix: "DEC + DEC + DEC", bcd: "add", inputs: [[10, "99"], [10, "1"]], digits: 3 },              // 100 needs 4 digits
   { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "300"], [10, "1"]], digits: 3 },            // 299 needs 4 digits

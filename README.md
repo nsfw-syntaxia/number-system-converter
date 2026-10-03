@@ -33,6 +33,9 @@ Calculator*.
   complement of each subtrahend: the **1's complement** method (end-around carry) and the
   **2's complement** method (carry dropped), with negative results recognised by the sign bit
   and every step checked against plain subtraction.
+- **BCD (8421) addition and subtraction** — signed or unsigned words (Auto or 3/4/6/8 digits),
+  addition with the +6 correction, subtraction by the 9's and 10's complement, OVERFLOW and
+  NEGATIVE flags for unsigned words, typed BCD entry, and packed BCD / binary display.
 - **Export PDF** — one click on the Documentation tab lays the report out for A4 (cover page with
   name / course / section, one section per page, no table row, figure, chart or code line split
   across pages) and opens the print dialog; choose **Save as PDF**.

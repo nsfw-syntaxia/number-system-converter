@@ -161,6 +161,15 @@
         </div>
         <span class="size-info" id="bcdInfo" aria-live="polite"></span>
       </div>
+      <div class="size-row">
+        <span class="size-label">Sign</span>
+        <div class="size-toggle" role="group" aria-label="Signed or unsigned word">
+          <button class="sign-btn" data-signed="yes" aria-pressed="true">Signed</button>
+          <button class="sign-btn" data-signed="no" aria-pressed="false">Unsigned</button>
+        </div>
+      </div>
+      <p class="hint small">Type an input directly in BCD (4-bit groups) if you want, or change the value in Step 1.</p>
+      <div class="bcd-entry" id="bcdEntry"></div>
       <div id="bcdBody"></div>
       <div class="lock-veil">
         <div class="lock-badge">
@@ -214,9 +223,14 @@
         <li><strong>BCD subtraction</strong> &mdash; <code>v1 &minus; v2 &minus; v3 &hellip;</code> is worked out by adding the
           <strong>9&rsquo;s complement</strong> (every digit 9 &minus; d; a carry out of the top digit is added back) and, separately, the
           <strong>10&rsquo;s complement</strong> (9&rsquo;s complement + 1; the carry is dropped). A leading digit of 9 marks a negative result.</li>
-        <li>The BCD word is chosen in decimal digits: <em>Auto</em>, or 3, 4, 6, or 8. The leading digit is the sign digit, so every
-          running value must be below 10<sup>D&minus;1</sup>. BCD works on whole, non-negative numbers; fractional or negative inputs are
-          reported, not rounded.</li>
+        <li>The BCD word is chosen in decimal digits: <em>Auto</em>, or 3, 4, 6, or 8. In a <strong>signed</strong> word the leading
+          digit is the sign digit, so every running value must be below 10<sup>D&minus;1</sup>; negative inputs are held in complement form.
+          In an <strong>unsigned</strong> word there is no sign digit: negative inputs are rejected, a carry out of the top digit in addition
+          sets the <strong>OVERFLOW</strong> flag, and a negative subtraction result sets the <strong>NEGATIVE</strong> flag.</li>
+        <li>BCD works on whole numbers. Fractional inputs are reported, not rounded.</li>
+        <li>Each input can also be typed directly in BCD (4-bit groups such as <code>0010 0101</code>); the value is then used like any other input.
+          Each input card shows its packed BCD form (two digits per byte, with a sign nibble <code>C</code> / <code>D</code> in signed words)
+          and its binary form.</li>
         <li>Invalid input, missing input, division by zero, and malformed expressions are all <strong>caught and reported</strong> without crashing &mdash; see <em>Arithmetic error handling</em> below.</li>
       </ul>
       <h3>Non-functional requirements</h3>
@@ -246,8 +260,11 @@
             <tr><td>Value too large for the chosen word size</td><td class="mono nw">complementWidth()</td><td>&ldquo;These values need at least 9 bits &hellip; so a 8-bit word is too small &mdash; choose a larger word size.&rdquo;</td></tr>
             <tr><td>Complement result disagrees with plain subtraction (overflow)</td><td class="mono nw">chainSubtract()</td><td>&ldquo;The 8-bit word overflowed at step 2 &mdash; choose a larger word size.&rdquo;</td></tr>
             <tr><td>BCD input with a fractional part</td><td class="mono">bcdWidth()</td><td>&ldquo;BCD needs whole numbers &mdash; input 1 has a fractional part.&rdquo;</td></tr>
-            <tr><td>BCD input is negative</td><td class="mono">bcdWidth()</td><td>&ldquo;BCD needs non-negative numbers &mdash; input 1 is negative.&rdquo;</td></tr>
+            <tr><td>Negative input in an unsigned BCD word</td><td class="mono">bcdWidth()</td><td>&ldquo;Unsigned BCD needs non-negative numbers &mdash; input 1 is negative. Switch to signed BCD to use negative inputs.&rdquo;</td></tr>
             <tr><td>Value too large for the chosen BCD digit count</td><td class="mono">bcdWidth()</td><td>&ldquo;These values need at least 4 digits &hellip; so a 3-digit word is too small &mdash; choose a larger word size.&rdquo;</td></tr>
+            <tr><td>Typed BCD group is not 0000&ndash;1001</td><td class="mono">typedBcd()</td><td>&ldquo;Each group must be 0000 to 1001 (0 to 9).&rdquo;</td></tr>
+            <tr><td>Carry out of the top digit in an unsigned BCD sum</td><td class="mono">bcdChainAdd()</td><td>OVERFLOW flag &mdash; &ldquo;the sum needs more than D digits; the word keeps only the low D digits.&rdquo;</td></tr>
+            <tr><td>Negative result in an unsigned BCD word</td><td class="mono">bcdChainSubtract()</td><td>NEGATIVE flag &mdash; &ldquo;the result is below zero, which an unsigned word cannot hold.&rdquo;</td></tr>
             <tr><td>BCD result disagrees with plain arithmetic (overflow)</td><td class="mono">bcdChainAdd(), bcdChainSubtract()</td><td>&ldquo;The 3-digit word overflowed at step 2 &mdash; choose a larger word size.&rdquo;</td></tr>
           </tbody>
         </table>
@@ -426,7 +443,8 @@
                 <span class="kw">IF</span> node.op = "/" <span class="kw">AND</span> r = 0 <span class="kw">THEN</span> <span class="kw">THROW</span> "Division by zero"
                 <span class="kw">RETURN</span> APPLY(node.op, l, r)</pre>
       <p class="hint" style="margin-top:18px;">BCD (8421): every decimal digit is a 4-bit group. D is the word size in
-        digits; the leading digit is the sign digit (0 = positive, 9 = negative).</p>
+        digits; the leading digit is the sign digit (0 = positive, 9 = negative). An unsigned word has no sign digit: a carry out of the
+        top digit sets OVERFLOW, and a negative result sets NEGATIVE.</p>
       <pre class="code"><span class="cm">// digits are numbered 1 (least significant) .. D (leading, sign digit)</span>
 
 <span class="kw">FUNCTION</span> BCD_ADD(a, b, D)              <span class="cm">// a[i], b[i] = the 4-bit digits</span>
@@ -590,8 +608,10 @@ flowchart TD
     J5 --> Z5
     I5 -- Yes --> K5["digit by digit: raw = a + b + carry<br/>if raw &gt; 9: digit = raw - 10, carry 1"]
     K5 --> L5{Carry out of<br/>the top digit?}
-    L5 -- Yes --> M5[/Show 'word overflowed'/]
+    L5 -- "Yes, signed" --> M5[/Show 'word overflowed'/]
     M5 --> Z5
+    L5 -- "Yes, unsigned" --> OV5[/Set OVERFLOW flag, keep low digits/]
+    OV5 --> N5
     L5 -- No --> N5["acc = sum ; k = k + 1"]
     N5 --> I5
 </pre>
@@ -619,6 +639,8 @@ flowchart TD
     M6 -- No --> N6[/Show 'word overflowed'/]
     N6 --> Z6
     M6 -- Yes --> O6["acc = sum ; k = k + 1"]
+    J6 -- "Yes, unsigned" --> NG6[/Set NEGATIVE flag/]
+    NG6 --> L6
     O6 --> C6
 </pre>
       </div>
@@ -644,10 +666,11 @@ flowchart TD
             (how a negative number is stored and read back in each system), <code>subtractStep()</code> (one subtraction by adding
             a complement), and <code>chainSubtract()</code> / <code>complementSubtraction()</code> (<code>v1 &minus; v2 &minus; &hellip;</code>
             by both methods, every step checked against plain subtraction).</li>
-        <li><code>js/bcd.js</code> &mdash; <code>bcdWidth()</code> (digit count), <code>bcdString()</code> (8421 groups),
-            <code>complement9()</code> / <code>complement10()</code>, <code>bcdAdd()</code> (digit by digit with the +6 correction),
+        <li><code>js/bcd.js</code> &mdash; <code>bcdWidth()</code> (digit count, signed or unsigned), <code>bcdString()</code> (8421 groups),
+            <code>packedString()</code> (packed BCD with sign nibble), <code>complement9()</code> / <code>complement10()</code>,
+            <code>encodeOperand()</code> (negative inputs in complement form), <code>bcdAdd()</code> (digit by digit with the +6 correction),
             <code>bcdSubtractStep()</code> (one subtraction by the 9&rsquo;s or 10&rsquo;s complement), and <code>bcdChainAdd()</code> /
-            <code>bcdChainSubtract()</code> (left to right, every step checked against plain arithmetic).</li>
+            <code>bcdChainSubtract()</code> (left to right, with OVERFLOW / NEGATIVE flags for unsigned words and every step checked).</li>
         <li><code>js/testcases.js</code> &mdash; <code>TEST_CASES</code>, the activity's test matrix: base combinations, fractional
             values, negative results, expression formulas, and forced error cases; plus <code>COMPLEMENT_VALUES</code> and
             <code>COMPLEMENT_CASES</code> for the complement tests, plus <code>BCD_VALUES</code> and <code>BCD_CASES</code> for the BCD tests.</li>
@@ -735,6 +758,8 @@ flowchart TD
             <tr><td>BCD addition with the +6 correction</td><td class="mono">bcdAdd(), bcdChainAdd() &mdash; bcd.js</td></tr>
             <tr><td>BCD subtraction by the 9&rsquo;s complement (end-around carry)</td><td class="mono">bcdSubtractStep(&hellip;, 9), bcdChainSubtract() &mdash; bcd.js</td></tr>
             <tr><td>BCD subtraction by the 10&rsquo;s complement (carry dropped)</td><td class="mono">bcdSubtractStep(&hellip;, 10), bcdChainSubtract() &mdash; bcd.js</td></tr>
+            <tr><td>Signed and unsigned BCD words, with OVERFLOW and NEGATIVE flags</td><td class="mono">bcdWidth(), bcdChainAdd(), bcdChainSubtract() &mdash; bcd.js</td></tr>
+            <tr><td>Typed BCD entry, packed BCD and binary display</td><td class="mono">typedBcd(), buildBcdEntry(), packedString() &mdash; app.js, bcd.js</td></tr>
             <tr><td>BCD digit count (Auto / 3 / 4 / 6 / 8) and overflow checks</td><td class="mono">bcdWidth(), bcdChainSubtract() &mdash; bcd.js</td></tr>
             <tr><td>Exact precision</td><td class="mono">BigInt fractions throughout &mdash; rational.js (no floating point in the calculation path)</td></tr>
           </tbody>
@@ -829,7 +854,7 @@ flowchart TD
 
   </section>
 
-  <footer class="foot">Radix Workbench &mdash; negative results are shown in sign&ndash;magnitude form; complements work on whole numbers in a fixed-width word; BCD works on whole, non-negative numbers.</footer>
+  <footer class="foot">Radix Workbench &mdash; negative results are shown in sign&ndash;magnitude form; complements work on whole numbers in a fixed-width word; BCD works on whole numbers; signed BCD words also take negative inputs.</footer>
 
 </div>
 

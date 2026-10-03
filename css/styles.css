@@ -648,3 +648,22 @@ table.tc.errs { table-layout: fixed; }
 .digit-btn:hover[aria-pressed="false"] { background: var(--app); }
 .digit-btn[aria-pressed="true"] { background: var(--cyan); color: var(--ink-bright); }
 .digit-btn:focus-visible { outline: 3px solid var(--purple); outline-offset: -3px; position: relative; z-index: 1; }
+
+/* Step 5: signed/unsigned toggle and typed BCD entry */
+.sign-btn {
+  border: 0; border-right: 2px solid var(--edge); background: var(--card); color: var(--text-soft);
+  font-family: var(--display); font-weight: 600; font-size: .84rem; padding: 8px 15px; cursor: pointer;
+}
+.sign-btn:last-child { border-right: 0; }
+.sign-btn:hover[aria-pressed="false"] { background: var(--app); }
+.sign-btn[aria-pressed="true"] { background: var(--cyan); color: var(--ink-bright); }
+.sign-btn:focus-visible { outline: 3px solid var(--purple); outline-offset: -3px; position: relative; z-index: 1; }
+.bcd-entry { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 4px 0 18px; }
+.bcd-entry-row { display: flex; flex-direction: column; gap: 4px; }
+.bcd-entry-label { font-family: var(--display); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-soft); }
+.bcd-entry input {
+  width: 100%; font-family: var(--mono); font-weight: 600; font-size: .98rem; padding: 8px 11px;
+  border: 2px solid var(--edge); border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 3px 3px 0 var(--edge);
+}
+.bcd-entry input:focus-visible { outline: 3px solid var(--purple); outline-offset: 2px; }
+.bcd-entry .msg { font-size: .85rem; min-height: 1em; }
