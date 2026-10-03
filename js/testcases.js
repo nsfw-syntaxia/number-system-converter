@@ -85,3 +85,42 @@ const COMPLEMENT_CASES = [
   { mix: "DEC + DEC + DEC", inputs: [[10, "200"], [10, "1"], [10, "1"]], width: 8 },         // 200 does not fit in 8 bits
   { mix: "DEC + DEC + DEC", inputs: [[10, "2.5"], [10, "1"], [10, "1"]] }                    // fractional input
 ];
+
+/* ============================================================
+   BCD test data (Step 5).
+
+   BCD_VALUES — single numbers in 8421 BCD with their 9's and 10's
+   complement. `digits` is the word size in decimal digits.
+
+   BCD_CASES — `bcd: "add"` (BCD addition with the +6 correction)
+   or `bcd: "sub"` (subtraction by the 9's and 10's complement),
+   checked against plain arithmetic. `digits` is "auto" (default)
+   or 3 / 4 / 6 / 8. `sampleBcd` marks the case for the Sample
+   Output panel; the last cases force errors.
+   ============================================================ */
+
+const BCD_VALUES = [
+  { base: 2,  value: "1011", digits: 3 },
+  { base: 10, value: "25",   digits: 4 },
+  { base: 16, value: "FF",   digits: 4 },
+  { base: 10, value: "0",    digits: 3 },
+  { base: 8,  value: "777",  digits: 4 }
+];
+
+const BCD_CASES = [
+  // --- subtraction by the 9's and 10's complement ---
+  { mix: "BIN + DEC + HEX", bcd: "sub", inputs: [[10, "12"], [10, "30"], [16, "1"]], sampleBcd: true }, // 12 - 30 - 1 = -19
+  { mix: "DEC + BIN + OCT", bcd: "sub", inputs: [[10, "200"], [10, "50"], [16, "1A"]] },              // 200 - 50 - 26 = 124
+  { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "300"], [10, "120"], [10, "95"]] },            // 300 - 120 - 95 = 85
+  { mix: "DEC + BIN + OCT", bcd: "sub", inputs: [[10, "12"], [2, "1100"], [8, "0"]] },               // 12 - 12 - 0 = 0 (-0 in 9's)
+
+  // --- addition in BCD ---
+  { mix: "BIN + DEC + OCT", bcd: "add", inputs: [[2, "1011"], [10, "25"], [8, "17"]] },              // 11 + 25 + 15 = 51
+  { mix: "DEC + DEC + DEC", bcd: "add", inputs: [[10, "58"], [10, "47"], [10, "36"]] },              // 58 + 47 + 36 = 141 (carries)
+  { mix: "OCT + HEX + DEC", bcd: "add", inputs: [[8, "77"], [16, "A"], [10, "9"]] },                // 63 + 10 + 9 = 82
+
+  // --- forced errors ---
+  { mix: "DEC + DEC + DEC", bcd: "add", inputs: [[10, "99"], [10, "1"]], digits: 3 },              // 100 needs 4 digits
+  { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "300"], [10, "1"]], digits: 3 },            // 299 needs 4 digits
+  { mix: "DEC + DEC + DEC", bcd: "sub", inputs: [[10, "2.5"], [10, "1"], [10, "1"]] }              // fractional input
+];

@@ -49,7 +49,7 @@ await page.evaluate(() => document.fonts.ready);
 /** Load a test case into the calculator and let the unlock animation settle. */
 async function load(pick) {
   await page.evaluate((src) => {
-    const tc = new Function("TEST_CASES", "COMPLEMENT_CASES", "return (" + src + ")")(TEST_CASES, COMPLEMENT_CASES);
+    const tc = new Function("TEST_CASES", "COMPLEMENT_CASES", "BCD_CASES", "return (" + src + ")")(TEST_CASES, COMPLEMENT_CASES, BCD_CASES);
     loadCase(tc);
   }, pick);
   await new Promise(r => setTimeout(r, 700));
@@ -106,5 +106,13 @@ await shoot("comp-twos-carry.png", [subH(2), sub(2)]);
 await load("COMPLEMENT_CASES.find(c => c.sampleComplement)");
 await shoot("comp-ones-negative.png", [subH(1), sub(1)]);
 await shoot("comp-twos-negative.png", [subH(2), sub(2)]);
+
+// Step 5: BCD 12 - 30 - 1 (digit count auto)
+await load("BCD_CASES.find(c => c.sampleBcd)");
+const bcdHead = (id) => `document.getElementById('${id}').previousElementSibling.previousElementSibling`;
+await shoot("bcd-inputs.png", ["document.getElementById('bcdInputs').previousElementSibling", "document.getElementById('bcdInputs')"]);
+await shoot("bcd-add.png", [bcdHead('bcdAdd'), "document.getElementById('bcdAdd')"]);
+await shoot("bcd-sub9.png", [bcdHead('bcdSub9'), "document.getElementById('bcdSub9')"]);
+await shoot("bcd-sub10.png", [bcdHead('bcdSub10'), "document.getElementById('bcdSub10')"]);
 
 await browser.close();

@@ -1,7 +1,7 @@
 /* ============================================================
    app.js — UI layer: rendering, events, step-unlock, init
    Depends on: rational.js, converter.js, arithmetic.js, expression.js,
-               complement.js, testcases.js
+               complement.js, bcd.js, testcases.js
    ============================================================ */
 
 const MIN_INPUTS = 3;
@@ -16,6 +16,7 @@ let state = [
 let op = "+";
 let mode = "chain";     // "chain" (Step 2 operation buttons) or "expr" (free-form formula)
 let wordChoice = "auto"; // Step 4 word size: "auto" | 8 | 16 | 32
+let digitChoice = "auto"; // Step 5 word size in decimal digits: "auto" | 3 | 4 | 6 | 8
 
 /* ---- cached DOM ---- */
 const inputList   = document.getElementById("inputList");
@@ -30,6 +31,9 @@ const exprMsg     = document.getElementById("exprMsg");
 const compBlock   = document.getElementById("step-comp");
 const compBody    = document.getElementById("compBody");
 const wordInfo    = document.getElementById("wordInfo");
+const bcdBlock    = document.getElementById("step-bcd");
+const bcdBody     = document.getElementById("bcdBody");
+const bcdInfo     = document.getElementById("bcdInfo");
 
 /* ============================================================
    Step 1 — input rows
@@ -173,8 +177,10 @@ function updateLocks() {
     allReady ? "Unlocked" : "Finish Step 1 to unlock";
   document.getElementById("compLockSub").textContent =
     allReady ? "Unlocked" : "Finish Step 1 to unlock";
+  document.getElementById("bcdLockSub").textContent =
+    allReady ? "Unlocked" : "Finish Step 1 to unlock";
 
-  [opBlock, resultBlock, compBlock].forEach(block => {
+  [opBlock, resultBlock, compBlock, bcdBlock].forEach(block => {
     const wasLocked = block.classList.contains("locked");
     block.classList.toggle("locked", !allReady);
     if (wasLocked && allReady) {
@@ -294,6 +300,7 @@ function refreshResult() {
   }
 
   refreshComplements(problem ? null : values);
+  refreshBcd(problem ? null : values);
 
   if (problem) {
     const exprLine = mode === "expr"
@@ -529,6 +536,179 @@ document.querySelectorAll(".size-btn").forEach(btn => {
 });
 
 /* ============================================================
+   Step 5 — BCD (8421) addition and subtraction by 9's / 10's complement
+   ============================================================ */
+const BCD_OP_NAME = { 9: "9's", 10: "10's" };
+
+/** The +6 correction note for one BCD addition (digits numbered from the left). */
+function correctionNote(add) {
+  const fixed = add.cols.map((c, i) => (c.corrected ? i + 1 : 0)).filter(Boolean);
+  return fixed.length ? "+0110 (6) at digit " + fixed.join(", ") : "no +6 correction needed";
+}
+
+/** A step card: a title and one row per line of working (shared by HTML). */
+function stepTableHTML(idx, title, rows) {
+  const body = rows.map(r => `
+    <tr class="${r.result ? "res" : ""}">
+      <th scope="row">${r.label}</th>
+      <td class="bits">${r.carry === undefined ? "" : `<span class="carry${r.carry ? "" : " off"}">${r.carry}</span>`}${r.bits}</td>
+      <td class="why">${r.note}</td>
+    </tr>`).join("");
+  return `<div class="cstep">
+    <div class="cstep-head"><span class="k">Step ${idx + 1}</span> ${title}</div>
+    <table class="cs"><tbody>${body}</tbody></table>
+  </div>`;
+}
+
+/** Rows for one subtraction step by the 9's or 10's complement. */
+function bcdStepRows(st, D, method) {
+  const nm = BCD_OP_NAME[method];
+  const bits = (p) => bcdString(p, D);
+  const rows = [
+    { label: "A (running value)", bits: bits(st.acc), note: "= " + st.aValue },
+    { label: "B (subtrahend)", bits: bits(st.b), note: "= " + st.bValue },
+    { label: nm + " complement of B", bits: bits(st.negB), note: "= -B" },
+    { label: "A + complement", carry: st.add.carry, bits: bits(st.add.sum),
+      note: correctionNote(st.add) + " · " + (!st.add.carry ? "carry out = 0"
+        : method === 9 ? "carry out = 1 → added back" : "carry out = 1 → dropped") }
+  ];
+  if (st.endAround) rows.push({ label: "+ end-around carry", bits: bits(st.result), note: "sum + 1" });
+
+  let verdict;
+  if (st.negZero) {
+    verdict = "sign digit 9, all nines = -0, which equals 0";
+  } else if (st.value >= 0n) {
+    verdict = "sign digit 0 → positive = " + st.value;
+  } else {
+    verdict = "sign digit 9 → negative; " + nm + " complement of the sum = " + (-st.value) + ", so " + st.value;
+  }
+  rows.push({ label: "Result", bits: bits(st.result), note: verdict, result: true });
+  return rows;
+}
+
+/** Final word under a walkthrough: BCD pattern and its signed value. */
+function bcdFinalHTML(pattern, D, value, label) {
+  return `<div class="cfinal">
+    <div class="cfinal-head">Final ${D}-digit word (${label}) — as a signed number = ${value}</div>
+    <div class="chips">
+      <div class="chip"><div class="lab">BCD 8421</div><div class="val">${bcdString(pattern, D)}</div></div>
+      <div class="chip"><div class="lab">Decimal</div><div class="val">${value}<sub>10</sub></div></div>
+    </div>
+  </div>`;
+}
+
+/** Every subtraction step plus the final word for one complement method. */
+function bcdWalkHTML(run, D, method) {
+  const steps = run.steps.map((st, idx) =>
+    stepTableHTML(idx, `${st.aValue} ${OP_SYMBOL["-"]} ${st.bValue}`, bcdStepRows(st, D, method))).join("");
+  return steps + bcdFinalHTML(run.pattern, D, run.value, BCD_OP_NAME[method] + " complement method");
+}
+
+/** Every addition step plus the final word. */
+function bcdAddWalkHTML(run, D) {
+  const steps = run.steps.map((st, idx) => stepTableHTML(idx, `${st.aValue} + ${st.bValue}`, [
+    { label: "A (running value)", bits: bcdString(st.a, D), note: "= " + st.aValue },
+    { label: "B", bits: bcdString(st.b, D), note: "= " + st.bValue },
+    { label: "A + B (BCD)", carry: st.add.carry, bits: bcdString(st.add.sum, D),
+      note: correctionNote(st.add) + (st.add.carry ? " · carry out" : "") },
+    { label: "Result", bits: bcdString(st.result, D), note: "= " + st.value, result: true }
+  ])).join("");
+  return steps + bcdFinalHTML(run.pattern, D, run.value, "BCD addition");
+}
+
+/** One input: its BCD code and its 9's and 10's complement. */
+function bcdCardHTML(i, value, D) {
+  const s = state[i];
+  const n = value.n;
+  const c9 = complement9(n, D), c10 = complement10(n, D);
+  return `<div class="ccard">
+    <div class="chead"><span class="idx">${String(i + 1).padStart(2, "0")}</span>
+      <span class="mono">${s.raw.trim().toUpperCase()}<sub>${s.base}</sub> = ${n}<sub>10</sub></span></div>
+    <table class="ct">
+      <thead><tr><th></th><th>BCD 8421 (${D} digits)</th><th>Decimal</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Number</th><td class="mono">${bcdString(n, D)}</td><td class="mono">${n}</td></tr>
+        <tr><th scope="row">9's complement</th><td class="mono">${bcdString(c9, D)}</td><td class="mono">${c9}</td></tr>
+        <tr class="two"><th scope="row">10's complement</th><td class="mono">${bcdString(c10, D)}</td><td class="mono">${c10}</td></tr>
+      </tbody>
+    </table>
+    <p class="cnote">9's: every digit 9 − d · 10's: 9's complement + 1</p>
+  </div>`;
+}
+
+/** Step 5: word size, BCD code and complements of every input, then addition and subtraction. */
+function refreshBcd(values) {
+  if (!values) {
+    bcdBody.innerHTML = "";
+    bcdInfo.textContent = "";
+    return;
+  }
+
+  let D;
+  try {
+    D = bcdWidth(values, digitChoice);
+  } catch (err) {
+    bcdInfo.textContent = "";
+    bcdBody.innerHTML = `<div class="note bad">${err.message}</div>`;
+    return;
+  }
+  bcdInfo.textContent = D + "-digit word" + (digitChoice === "auto" ? " (chosen automatically)" : "");
+
+  const ints = values.map(v => v.n);
+  const cards = values.map((v, i) => bcdCardHTML(i, v, D)).join("");
+  const sumText = state.map(s => `${s.raw.trim().toUpperCase()}<sub>${s.base}</sub>`).join(" + ");
+  const diffText = state.map(s => `${s.raw.trim().toUpperCase()}<sub>${s.base}</sub>`).join(` ${OP_SYMBOL["-"]} `);
+
+  let addHTML;
+  try {
+    const add = bcdChainAdd(ints, D);
+    addHTML = `<h3 class="csec">Addition in BCD</h3>
+      <p class="cnote">Add digit by digit. If a digit sum is greater than 9, add 0110 (6) and carry 1 to the next digit.</p>
+      <div class="csub" id="bcdAdd">${bcdAddWalkHTML(add, D)}</div>
+      <div class="note">Plain addition gives <strong>${add.value}</strong> — BCD agrees.</div>`;
+  } catch (err) {
+    addHTML = `<h3 class="csec">Addition in BCD</h3><div class="note bad">${err.message}</div>`;
+  }
+
+  let subHTML;
+  try {
+    const runs = { 9: bcdChainSubtract(ints, D, 9), 10: bcdChainSubtract(ints, D, 10) };
+    const rules = {
+      9: "Add the 9's complement of B (every digit 9 − d). A carry out of the top digit is added back (end-around carry); no carry means the result is negative.",
+      10: "Add the 10's complement of B (9's complement + 1). A carry out of the top digit is dropped; no carry means the result is negative."
+    };
+    subHTML = [9, 10].map(m => `<h3 class="csec">Subtraction using the ${BCD_OP_NAME[m]} complement</h3>
+        <p class="cnote">${rules[m]}</p>
+        <div class="csub" id="bcdSub${m}">${bcdWalkHTML(runs[m], D, m)}</div>`).join("") +
+      `<div class="note">Plain subtraction gives <strong>${runs[9].value}</strong> — both methods agree.</div>`;
+  } catch (err) {
+    subHTML = `<h3 class="csec">Subtraction using complements</h3><div class="note bad">${err.message}</div>`;
+  }
+
+  bcdBody.innerHTML = `
+    <h3 class="csec">BCD code and complements of each input</h3>
+    <div class="clist" id="bcdInputs">${cards}</div>
+    <p class="cnote csum">Sum: ${sumText}</p>
+    <p class="cnote">Difference, left to right: ${diffText}</p>
+    ${addHTML}
+    ${subHTML}`;
+}
+
+/** Digit-count buttons. Also used by loadCase(). */
+function setDigitChoice(choice) {
+  digitChoice = choice === "auto" ? "auto" : Number(choice);
+  document.querySelectorAll(".digit-btn").forEach(b =>
+    b.setAttribute("aria-pressed", String(b.dataset.digits === String(digitChoice))));
+}
+
+document.querySelectorAll(".digit-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setDigitChoice(btn.dataset.digits);
+    refreshResult();
+  });
+});
+
+/* ============================================================
    Controls — input count, operation, tabs
    ============================================================ */
 document.getElementById("more").addEventListener("click", () => {
@@ -688,6 +868,7 @@ function renderComplementTables() {
 function loadCase(tc) {
   state = tc.inputs.map(([b, v]) => ({ base: b, raw: v }));
   setWordChoice(tc.width || "auto");
+  if (tc.bcd) setDigitChoice(tc.digits || "auto");
   setMode(tc.mode === "expr" ? "expr" : "chain");
   if (mode === "chain") {
     op = tc.op || "-";
@@ -701,7 +882,7 @@ function loadCase(tc) {
   refreshResult();
   showView("calc");
   // complement cases are about Step 4, so scroll there instead of to the top
-  const target = tc.op || tc.mode ? null : compBlock;
+  const target = tc.bcd ? bcdBlock : tc.op || tc.mode ? null : compBlock;
   if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   else window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -878,6 +1059,129 @@ function renderSampleComplement(tc) {
   });
 }
 
+/** Test tables for Step 5: BCD code and complements of single numbers, then both operations. */
+function renderBcdTables() {
+  document.getElementById("tcBcdValues").innerHTML = BCD_VALUES.map((bv, i) => {
+    const n = parseValue(bv.value, bv.base).n;
+    const D = bv.digits;
+    return `<tr>
+      <td class="mono">B${String(i + 1).padStart(2, "0")}</td>
+      <td class="mono">${bv.value}<sub>${bv.base}</sub> = ${n}<sub>10</sub></td>
+      <td class="mono">${D}</td>
+      <td class="mono cbases">${bcdString(n, D)}</td>
+      <td class="mono cbases">${bcdString(complement9(n, D), D)}<br>${bcdString(complement10(n, D), D)}</td>
+    </tr>`;
+  }).join("");
+
+  const cases = BCD_CASES.map((tc, i) => ({ tc, i }));
+  const inputsText = tc => tc.inputs.map(([b, v]) => `${v}<sub>${b}</sub>`).join(tc.bcd === "sub" ? ` ${OP_SYMBOL["-"]} ` : " + ");
+  const tryBtn = i => `<td class="tryc"><button class="try" data-bcase="${i}">Try</button></td>`;
+
+  document.getElementById("tcBcdAdd").innerHTML = cases.filter(x => x.tc.bcd === "add").map(({ tc, i }, j) => {
+    const num = "A" + String(j + 1).padStart(2, "0");
+    const start = `<td class="mono">${num}</td><td class="mono nw">${inputsText(tc)}</td><td class="mono nw">${tc.digits ? tc.digits : "auto"}</td>`;
+    try {
+      const vals = tc.inputs.map(([b, v]) => parseValue(v, b));
+      const D = bcdWidth(vals, tc.digits || "auto");
+      const r = bcdChainAdd(vals.map(v => v.n), D);
+      return `<tr>${start}<td class="mono cbases">${bcdString(r.pattern, D)}</td><td class="mono">${r.value}</td>${tryBtn(i)}</tr>`;
+    } catch (err) {
+      return `<tr>${start}<td class="mono" colspan="2">Error — ${err.message}</td>${tryBtn(i)}</tr>`;
+    }
+  }).join("");
+
+  document.getElementById("tcBcdSub").innerHTML = cases.filter(x => x.tc.bcd === "sub").map(({ tc, i }, j) => {
+    const num = "S" + String(j + 1).padStart(2, "0");
+    const start = `<td class="mono">${num}</td><td class="mono nw">${inputsText(tc)}</td><td class="mono nw">${tc.digits ? tc.digits : "auto"}</td>`;
+    try {
+      const vals = tc.inputs.map(([b, v]) => parseValue(v, b));
+      const D = bcdWidth(vals, tc.digits || "auto");
+      const ints = vals.map(v => v.n);
+      const a = bcdChainSubtract(ints, D, 9), b = bcdChainSubtract(ints, D, 10);
+      const cell = (run) => `${bcdString(run.pattern, D)} (${run.negZero ? "-0" : run.value})`;
+      return `<tr>${start}<td class="mono cbases">${cell(a)}</td><td class="mono cbases">${cell(b)}</td>
+        <td class="mono">${a.value}</td>${tryBtn(i)}</tr>`;
+    } catch (err) {
+      return `<tr>${start}<td class="mono" colspan="3">Error — ${err.message}</td>${tryBtn(i)}</tr>`;
+    }
+  }).join("");
+
+  document.querySelectorAll("[data-bcase]").forEach(btn => {
+    btn.addEventListener("click", () => loadCase(BCD_CASES[Number(btn.dataset.bcase)]));
+  });
+}
+
+/** Sample 5 — BCD: codes, then addition, then subtraction by the 9's and 10's complement. */
+function renderSampleBcd(tc) {
+  const vals = tc.inputs.map(([b, v]) => parseValue(v, b));
+  const D = bcdWidth(vals, tc.digits || "auto");
+  const ints = vals.map(v => v.n);
+  const shown = tc.inputs.map(([b, v]) => `${v}(${b})`).join(` ${OP_SYMBOL["-"]} `);
+
+  const intro = sampleInputLines(tc, vals);
+  intro.push(`  Mode: BCD (8421), word: ${D} digits (leading digit = sign digit)`);
+  intro.push("");
+  tc.inputs.forEach(([b, v], idx) => {
+    const n = ints[idx];
+    intro.push(`  Input ${idx + 1}:  ${v}(${b})`);
+    intro.push(`     BCD      = ${bcdString(n, D)}   (${n})`);
+    intro.push(`     9's      = ${bcdString(complement9(n, D), D)}`);
+    intro.push(`     10's     = ${bcdString(complement10(n, D), D)}`);
+    intro.push("");
+  });
+
+  const text = (rows) => rows.map(r => {
+    const bits = (r.carry === undefined ? "  " : r.carry + " ") + r.bits;
+    return "     " + r.label.padEnd(22) + bits.padEnd(D * 5 + 4) + r.note;
+  });
+
+  const add = bcdChainAdd(ints, D);
+  const addLines = [`  Addition in BCD:  ${tc.inputs.map(([b, v]) => `${v}(${b})`).join(" + ")}`];
+  add.steps.forEach((st, idx) => {
+    addLines.push("");
+    addLines.push(`  Step ${idx + 1}:  ${st.aValue} + ${st.bValue}`);
+    addLines.push(...text([
+      { label: "A (running value)", bits: bcdString(st.a, D), note: "= " + st.aValue },
+      { label: "B", bits: bcdString(st.b, D), note: "= " + st.bValue },
+      { label: "A + B (BCD)", carry: st.add.carry, bits: bcdString(st.add.sum, D), note: correctionNote(st.add) }
+    ]));
+  });
+  addLines.push("");
+  addLines.push("  RESULT:  " + bcdString(add.pattern, D) + "   = " + add.value);
+
+  const walk = (method) => {
+    const run = bcdChainSubtract(ints, D, method);
+    const lines = [`  Subtraction using the ${BCD_OP_NAME[method]} complement:  ${shown}`];
+    run.steps.forEach((st, idx) => {
+      lines.push("");
+      lines.push(`  Step ${idx + 1}:  ${st.aValue} ${OP_SYMBOL["-"]} ${st.bValue}`);
+      lines.push(...text(bcdStepRows(st, D, method)));
+    });
+    lines.push("");
+    lines.push("  RESULT (" + BCD_OP_NAME[method] + " complement)");
+    lines.push("     BCD " + bcdString(run.pattern, D));
+    lines.push("     signed value = " + (run.negZero ? "-0 (equals 0)" : run.value));
+    return lines;
+  };
+
+  const plain = bcdChainSubtract(ints, D, 9).value;
+  const sub9 = walk(9);
+  sub9.push("");
+  sub9.push("  Plain subtraction check:  " + plain + "   (both methods agree)");
+  const sub10 = walk(10);
+  sub10.push("");
+  sub10.push("  Plain subtraction check:  " + plain + "   (both methods agree)");
+
+  const host = document.getElementById("sampleOutBcd");
+  host.innerHTML = "";
+  [intro, addLines, sub9, sub10].forEach(lines => {
+    const panel = document.createElement("div");
+    panel.className = "sample";
+    panel.textContent = lines.join("\n");
+    host.appendChild(panel);
+  });
+}
+
 function renderSamples() {
   const chainCase = TEST_CASES.find(c => c.sample) || TEST_CASES.find(c => c.mode !== "expr");
   const exprCase  = TEST_CASES.find(c => c.sampleExpr);
@@ -888,6 +1192,8 @@ function renderSamples() {
   if (exprCase) renderSampleExpr(exprCase);
   if (errorCase) renderSampleError(errorCase);
   if (compCase) renderSampleComplement(compCase);
+  const bcdCase = BCD_CASES.find(c => c.sampleBcd);
+  if (bcdCase) renderSampleBcd(bcdCase);
 }
 
 /* ============================================================
@@ -931,4 +1237,5 @@ buildRows();
 refreshResult();
 renderTestTable();
 renderComplementTables();
+renderBcdTables();
 renderSamples();

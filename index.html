@@ -146,6 +146,37 @@
       </div>
     </div>
 
+    <div class="block lockable locked" id="step-bcd">
+      <h2><span class="n">5</span> BCD addition &amp; subtraction</h2>
+      <p class="hint">Each decimal digit in 8421 BCD. Addition uses the <strong>+6</strong> correction; subtraction is done
+        by the <strong>9&rsquo;s</strong> and the <strong>10&rsquo;s</strong> complement.</p>
+      <div class="size-row">
+        <span class="size-label">Digits</span>
+        <div class="size-toggle" id="digitSize" role="group" aria-label="Word size in decimal digits">
+          <button class="digit-btn" data-digits="auto" aria-pressed="true">Auto</button>
+          <button class="digit-btn" data-digits="3" aria-pressed="false">3</button>
+          <button class="digit-btn" data-digits="4" aria-pressed="false">4</button>
+          <button class="digit-btn" data-digits="6" aria-pressed="false">6</button>
+          <button class="digit-btn" data-digits="8" aria-pressed="false">8</button>
+        </div>
+        <span class="size-info" id="bcdInfo" aria-live="polite"></span>
+      </div>
+      <div id="bcdBody"></div>
+      <div class="lock-veil">
+        <div class="lock-badge">
+          <div class="tape"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2.5" fill="#FFD44D"></rect>
+            <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+            <circle cx="12" cy="15" r="1.6" fill="currentColor"></circle>
+            <path d="M12 16.4v2.2"></path>
+          </svg>
+          <p class="lock-title">Locked</p>
+          <p class="lock-sub" id="bcdLockSub">Finish Step 1 to unlock</p>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <!-- ============ DOCUMENTATION ============ -->
@@ -178,14 +209,22 @@
         <li>Complements are taken in a fixed-width <strong>word</strong> chosen by the user: <em>Auto</em> (smallest multiple of 4 bits, at least 8, that holds every value and a sign bit), or 8, 16, or 32 bits.</li>
         <li><strong>Subtraction using complements</strong> &mdash; <code>v1 &minus; v2 &minus; v3 &hellip;</code> is worked out left to right by <em>adding</em> the complement of each subtrahend, once with the <strong>1&rsquo;s complement method</strong> (a carry out of the top bit is added back &mdash; the end-around carry) and once with the <strong>2&rsquo;s complement method</strong> (the carry out is dropped). No carry means the result is negative and is stored in complement form; the sign bit shows it.</li>
         <li>Every complement subtraction is checked against plain subtraction, so a word that is too small is reported instead of giving a wrong answer.</li>
+        <li><strong>BCD (8421) addition</strong> &mdash; <code>v1 + v2 + v3 &hellip;</code> is worked out digit by digit
+          in BCD. Where a digit sum is greater than 9, <strong>0110 (6)</strong> is added to correct it and a carry goes to the next digit.</li>
+        <li><strong>BCD subtraction</strong> &mdash; <code>v1 &minus; v2 &minus; v3 &hellip;</code> is worked out by adding the
+          <strong>9&rsquo;s complement</strong> (every digit 9 &minus; d; a carry out of the top digit is added back) and, separately, the
+          <strong>10&rsquo;s complement</strong> (9&rsquo;s complement + 1; the carry is dropped). A leading digit of 9 marks a negative result.</li>
+        <li>The BCD word is chosen in decimal digits: <em>Auto</em>, or 3, 4, 6, or 8. The leading digit is the sign digit, so every
+          running value must be below 10<sup>D&minus;1</sup>. BCD works on whole, non-negative numbers; fractional or negative inputs are
+          reported, not rounded.</li>
         <li>Invalid input, missing input, division by zero, and malformed expressions are all <strong>caught and reported</strong> without crashing &mdash; see <em>Arithmetic error handling</em> below.</li>
       </ul>
       <h3>Non-functional requirements</h3>
       <ul>
         <li>Single page, no installation, runs in any modern browser.</li>
         <li>Values are stored as exact fractions (BigInt numerator / denominator), so conversion and arithmetic never lose precision. Repeating expansions are shown truncated.</li>
-        <li>Conversions, the result, and the complement workings update immediately as inputs or the word size change.</li>
-        <li>Steps 2, 3, and 4 stay locked until every input number is valid, so the flow is followed in order.</li>
+        <li>Conversions, the result, and the complement and BCD workings update immediately as inputs or the word size change.</li>
+        <li>Steps 2, 3, 4, and 5 stay locked until every input number is valid, so the flow is followed in order.</li>
         <li>The Documentation tab can be exported to a neatly paginated <strong>PDF report</strong> directly from the browser (cover page, one section per page, tables and figures never split across pages).</li>
       </ul>
       <h3>Arithmetic error handling</h3>
@@ -195,7 +234,7 @@
           <thead><tr><th>Scenario</th><th>Detected in</th><th>Message shown to the user</th></tr></thead>
           <tbody>
             <tr><td>Digit outside the selected base's digit set</td><td class="mono nw">parseValue()</td><td>&ldquo;&lt;Base&gt; uses digits &hellip;&rdquo;</td></tr>
-            <tr><td>Input left empty</td><td class="mono nw">parseValue()</td><td>Row stays neutral; Steps 2&ndash;4 stay locked</td></tr>
+            <tr><td>Input left empty</td><td class="mono nw">parseValue()</td><td>Row stays neutral; Steps 2&ndash;5 stay locked</td></tr>
             <tr><td>Division by zero &mdash; chain <em>or</em> expression mode</td><td class="mono nw">ratDiv()</td><td>&ldquo;Division by zero is undefined &mdash; change the divisor.&rdquo;</td></tr>
             <tr><td>Empty formula</td><td class="mono nw">evaluateFormula()</td><td>&ldquo;Enter a formula to evaluate, e.g. (a + b &minus; c) * d.&rdquo;</td></tr>
             <tr><td>Unrecognised character in a formula</td><td class="mono nw">tokenizeFormula()</td><td>&ldquo;Unexpected character &ldquo;&hellip;&rdquo; in the formula.&rdquo;</td></tr>
@@ -206,6 +245,10 @@
             <tr><td>Fractional input in complement subtraction</td><td class="mono nw">complementSubtraction()</td><td>&ldquo;Complement subtraction needs whole numbers &mdash; input 1 has a fractional part.&rdquo;</td></tr>
             <tr><td>Value too large for the chosen word size</td><td class="mono nw">complementWidth()</td><td>&ldquo;These values need at least 9 bits &hellip; so a 8-bit word is too small &mdash; choose a larger word size.&rdquo;</td></tr>
             <tr><td>Complement result disagrees with plain subtraction (overflow)</td><td class="mono nw">chainSubtract()</td><td>&ldquo;The 8-bit word overflowed at step 2 &mdash; choose a larger word size.&rdquo;</td></tr>
+            <tr><td>BCD input with a fractional part</td><td class="mono">bcdWidth()</td><td>&ldquo;BCD needs whole numbers &mdash; input 1 has a fractional part.&rdquo;</td></tr>
+            <tr><td>BCD input is negative</td><td class="mono">bcdWidth()</td><td>&ldquo;BCD needs non-negative numbers &mdash; input 1 is negative.&rdquo;</td></tr>
+            <tr><td>Value too large for the chosen BCD digit count</td><td class="mono">bcdWidth()</td><td>&ldquo;These values need at least 4 digits &hellip; so a 3-digit word is too small &mdash; choose a larger word size.&rdquo;</td></tr>
+            <tr><td>BCD result disagrees with plain arithmetic (overflow)</td><td class="mono">bcdChainAdd(), bcdChainSubtract()</td><td>&ldquo;The 3-digit word overflowed at step 2 &mdash; choose a larger word size.&rdquo;</td></tr>
           </tbody>
         </table>
       </div>
@@ -382,6 +425,54 @@
       BIN:      l &larr; EVALUATE(node.left, values) ; r &larr; EVALUATE(node.right, values)
                 <span class="kw">IF</span> node.op = "/" <span class="kw">AND</span> r = 0 <span class="kw">THEN</span> <span class="kw">THROW</span> "Division by zero"
                 <span class="kw">RETURN</span> APPLY(node.op, l, r)</pre>
+      <p class="hint" style="margin-top:18px;">BCD (8421): every decimal digit is a 4-bit group. D is the word size in
+        digits; the leading digit is the sign digit (0 = positive, 9 = negative).</p>
+      <pre class="code"><span class="cm">// digits are numbered 1 (least significant) .. D (leading, sign digit)</span>
+
+<span class="kw">FUNCTION</span> BCD_ADD(a, b, D)              <span class="cm">// a[i], b[i] = the 4-bit digits</span>
+  carry &larr; 0
+  <span class="kw">FOR</span> i <span class="kw">FROM</span> 1 <span class="kw">TO</span> D <span class="kw">DO</span>
+      raw &larr; a[i] + b[i] + carry             <span class="cm">// binary addition of two digits</span>
+      <span class="kw">IF</span> raw &gt; 9 <span class="kw">THEN</span>                   <span class="cm">// +0110 correction, carry 1</span>
+          sum[i] &larr; raw - 10 ; carry &larr; 1
+      <span class="kw">ELSE</span> sum[i] &larr; raw ; carry &larr; 0
+  <span class="kw">RETURN</span> sum, carry
+
+<span class="kw">FUNCTION</span> COMPLEMENT9(b, D)            <span class="cm">// every digit 9 - d  (= 10^D - 1 - b)</span>
+  <span class="kw">RETURN</span> 9 - b[i] for i = 1 .. D
+
+<span class="kw">FUNCTION</span> COMPLEMENT10(b, D)           <span class="cm">// 9's complement + 1</span>
+  <span class="kw">RETURN</span> BCD_ADD(COMPLEMENT9(b, D), 1, D)
+
+<span class="kw">FUNCTION</span> SUB_STEP(A, B, D, method)    <span class="cm">// A - B by adding a complement</span>
+  negB &larr; (method = 9) ? COMPLEMENT9(B, D) : COMPLEMENT10(B, D)
+  sum, carry &larr; BCD_ADD(A, negB, D)
+  <span class="kw">IF</span> method = 9 <span class="kw">AND</span> carry = 1 <span class="kw">THEN</span> sum &larr; BCD_ADD(sum, 1, D)   <span class="cm">// end-around carry</span>
+                                              <span class="cm">// method 10: the carry is dropped</span>
+  <span class="kw">RETURN</span> sum
+
+<span class="kw">FUNCTION</span> DECODE(r, D, method)         <span class="cm">// leading digit 9 = negative</span>
+  <span class="kw">IF</span> leading digit of r &ne; 9 <span class="kw">THEN RETURN</span> r
+  <span class="kw">RETURN</span> -(method = 9 ? (10^D - 1 - r) : (10^D - r))
+
+<span class="kw">BEGIN</span> BCD_ADDITION
+  w &larr; CHOOSE_DIGITS(dec[1..n], choice)
+  acc &larr; dec[1]
+  <span class="kw">FOR</span> k <span class="kw">FROM</span> 2 <span class="kw">TO</span> n <span class="kw">DO</span>
+      acc, carry &larr; BCD_ADD(acc, dec[k], w)
+      <span class="kw">IF</span> carry = 1 <span class="kw">THEN THROW</span> "word overflowed"
+  PRINT acc in BCD, and its decimal value
+<span class="kw">END</span>
+
+<span class="kw">BEGIN</span> BCD_SUBTRACTION
+  w &larr; CHOOSE_DIGITS(dec[1..n], choice)
+  <span class="kw">FOR</span> method <span class="kw">IN</span> (9, 10) <span class="kw">DO</span>
+      acc &larr; dec[1]
+      <span class="kw">FOR</span> k <span class="kw">FROM</span> 2 <span class="kw">TO</span> n <span class="kw">DO</span>
+          acc &larr; SUB_STEP(acc, dec[k], w, method)
+          <span class="kw">IF</span> DECODE(acc, w, method) &ne; (dec[1] - ... - dec[k]) <span class="kw">THEN THROW</span> "word overflowed"
+      PRINT acc in BCD, and DECODE(acc, w, method)
+<span class="kw">END</span></pre>
     </div>
 
     <div class="block prose">
@@ -481,11 +572,61 @@ flowchart TD
     R4 --> E4
 </pre>
       </div>
+      <p class="hint" style="margin-top:18px;">BCD addition, with the +6 correction:</p>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A5([Start]) --> B5[/Read valid inputs dec_1..n and the digit count choice/]
+    B5 --> C5{All inputs whole<br/>and non-negative?}
+    C5 -- No --> D5[/Show 'BCD needs whole, non-negative numbers'/]
+    D5 --> Z5([End])
+    C5 -- Yes --> E5{Every value fits<br/>in w digits?}
+    E5 -- No --> F5[/Show 'word too small'/]
+    F5 --> Z5
+    E5 -- Yes --> G5["Show each input in BCD (8421),<br/>its 9's and 10's complement"]
+    G5 --> H5["acc = dec_1 ; k = 2"]
+    H5 --> I5{k &lt;= n?}
+    I5 -- No --> J5[/Show sum in BCD and its decimal value/]
+    J5 --> Z5
+    I5 -- Yes --> K5["digit by digit: raw = a + b + carry<br/>if raw &gt; 9: digit = raw - 10, carry 1"]
+    K5 --> L5{Carry out of<br/>the top digit?}
+    L5 -- Yes --> M5[/Show 'word overflowed'/]
+    M5 --> Z5
+    L5 -- No --> N5["acc = sum ; k = k + 1"]
+    N5 --> I5
+</pre>
+      </div>
+      <p class="hint" style="margin-top:18px;">BCD subtraction by the 9&rsquo;s or 10&rsquo;s complement (run once with each method):</p>
+      <div class="flow-wrap">
+<pre class="mermaid">
+flowchart TD
+    A6(["Start: whole values dec_1..n, digit count w"]) --> B6["acc = dec_1 ; k = 2"]
+    B6 --> C6{k &lt;= n?}
+    C6 -- No --> D6[/Show final BCD pattern and its signed value/]
+    D6 --> Z6([End])
+    C6 -- Yes --> E6["negB = 9's: every digit 9 - d<br/>or 10's: 9's + 1"]
+    E6 --> F6["sum, carry = BCD add (acc, negB)"]
+    F6 --> G6{Carry out of<br/>the top digit?}
+    G6 -- "Yes, 9's" --> H6["sum = sum + 1<br/>(end-around carry)"]
+    G6 -- "Yes, 10's" --> I6["drop the carry"]
+    G6 -- No --> J6{Leading digit<br/>of sum = 9?}
+    H6 --> J6
+    I6 --> J6
+    J6 -- Yes --> K6["negative: magnitude =<br/>complement of sum"]
+    J6 -- No --> L6["positive: value = sum"]
+    K6 --> M6{Matches plain<br/>subtraction?}
+    L6 --> M6
+    M6 -- No --> N6[/Show 'word overflowed'/]
+    N6 --> Z6
+    M6 -- Yes --> O6["acc = sum ; k = k + 1"]
+    O6 --> C6
+</pre>
+      </div>
     </div>
 
     <div class="block prose">
       <h2><span class="n">4</span> Program implementation</h2>
-      <p>No build step or framework &mdash; seven plain <code>&lt;script&gt;</code> files, loaded in dependency order, with the
+      <p>No build step or framework &mdash; eight plain <code>&lt;script&gt;</code> files, loaded in dependency order, with the
          calculation logic kept free of DOM code so it can be read (or unit-tested) on its own.</p>
       <h3>Modules</h3>
       <ul>
@@ -503,15 +644,19 @@ flowchart TD
             (how a negative number is stored and read back in each system), <code>subtractStep()</code> (one subtraction by adding
             a complement), and <code>chainSubtract()</code> / <code>complementSubtraction()</code> (<code>v1 &minus; v2 &minus; &hellip;</code>
             by both methods, every step checked against plain subtraction).</li>
+        <li><code>js/bcd.js</code> &mdash; <code>bcdWidth()</code> (digit count), <code>bcdString()</code> (8421 groups),
+            <code>complement9()</code> / <code>complement10()</code>, <code>bcdAdd()</code> (digit by digit with the +6 correction),
+            <code>bcdSubtractStep()</code> (one subtraction by the 9&rsquo;s or 10&rsquo;s complement), and <code>bcdChainAdd()</code> /
+            <code>bcdChainSubtract()</code> (left to right, every step checked against plain arithmetic).</li>
         <li><code>js/testcases.js</code> &mdash; <code>TEST_CASES</code>, the activity's test matrix: base combinations, fractional
             values, negative results, expression formulas, and forced error cases; plus <code>COMPLEMENT_VALUES</code> and
-            <code>COMPLEMENT_CASES</code> for the complement tests.</li>
+            <code>COMPLEMENT_CASES</code> for the complement tests, plus <code>BCD_VALUES</code> and <code>BCD_CASES</code> for the BCD tests.</li>
         <li><code>js/app.js</code> &mdash; UI layer: builds the input rows, wires the mode toggle, validates and renders Steps
-            1&ndash;4, the step-unlock animation, the Documentation tab (test tables, sample output), and the
+            1&ndash;5, the step-unlock animation, the Documentation tab (test tables, sample output), and the
             <strong>Export PDF</strong> button.</li>
       </ul>
       <h3>Calculator interface</h3>
-      <p>The running program, Steps 1&ndash;4, for each operation mode &mdash; screenshots, not a mockup
+      <p>The running program, Steps 1&ndash;5, for each operation mode &mdash; screenshots, not a mockup
          (regenerate them with <code>tools/capture-screenshots.mjs</code>).</p>
 
       <figure class="shot">
@@ -551,6 +696,27 @@ flowchart TD
         <figcaption>Negative result by the 1&rsquo;s complement (top) and 2&rsquo;s complement (bottom) methods.</figcaption>
       </figure>
 
+      <h4>Step 5 &mdash; BCD addition and subtraction</h4>
+      <p>The same kind of inputs, shown in 8421 BCD, then the sum and both complement subtractions. Example:
+         <code>12</code><sub>10</sub> &minus; <code>30</code><sub>10</sub> &minus; <code>1</code><sub>16</sub> = <code>-19</code>.</p>
+
+      <figure class="shot">
+        <img src="img/bcd-inputs.png" alt="Step 5: BCD code and 9's and 10's complement of each input">
+        <figcaption>BCD (8421) code and the 9&rsquo;s and 10&rsquo;s complement of each input, in the chosen digit count.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/bcd-add.png" alt="Step 5: BCD addition with digit corrections">
+        <figcaption>BCD addition: each digit sum greater than 9 gets <strong>+0110</strong> and a carry.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/bcd-sub9.png" alt="Step 5: subtraction by the 9's complement with end-around carry">
+        <figcaption>Subtraction by the <strong>9&rsquo;s complement</strong> &mdash; the carry out of the top digit is added back.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/bcd-sub10.png" alt="Step 5: subtraction by the 10's complement with the carry dropped">
+        <figcaption>Subtraction by the <strong>10&rsquo;s complement</strong> &mdash; the carry out of the top digit is dropped.</figcaption>
+      </figure>
+
       <h3>Requirement &rarr; implementation</h3>
       <div class="tc-wrap">
         <table class="tc">
@@ -566,6 +732,10 @@ flowchart TD
             <tr><td>Subtraction using 2&rsquo;s complement (carry dropped)</td><td class="mono">subtractStep(&hellip;, 2), chainSubtract() &mdash; complement.js</td></tr>
             <tr><td>Word size (Auto / 8 / 16 / 32) and overflow checks</td><td class="mono">complementWidth(), chainSubtract() &mdash; complement.js</td></tr>
             <tr><td>Export PDF</td><td class="mono">exportPdf(), @media print rules &mdash; app.js, styles.css</td></tr>
+            <tr><td>BCD addition with the +6 correction</td><td class="mono">bcdAdd(), bcdChainAdd() &mdash; bcd.js</td></tr>
+            <tr><td>BCD subtraction by the 9&rsquo;s complement (end-around carry)</td><td class="mono">bcdSubtractStep(&hellip;, 9), bcdChainSubtract() &mdash; bcd.js</td></tr>
+            <tr><td>BCD subtraction by the 10&rsquo;s complement (carry dropped)</td><td class="mono">bcdSubtractStep(&hellip;, 10), bcdChainSubtract() &mdash; bcd.js</td></tr>
+            <tr><td>BCD digit count (Auto / 3 / 4 / 6 / 8) and overflow checks</td><td class="mono">bcdWidth(), bcdChainSubtract() &mdash; bcd.js</td></tr>
             <tr><td>Exact precision</td><td class="mono">BigInt fractions throughout &mdash; rational.js (no floating point in the calculation path)</td></tr>
           </tbody>
         </table>
@@ -609,13 +779,42 @@ flowchart TD
           <tbody id="tcCompCases"></tbody>
         </table>
       </div>
+
+      <h3 style="margin-top:26px;">BCD code and complements of single numbers</h3>
+      <p class="hint">Each number in 8421 BCD, with its 9&rsquo;s complement (top) and 10&rsquo;s complement (bottom) in the same
+        number of digits.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead><tr><th>#</th><th>Number</th><th>Digits</th><th>BCD 8421</th><th>9&rsquo;s (top) / 10&rsquo;s (bottom)</th></tr></thead>
+          <tbody id="tcBcdValues"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:26px;">BCD addition</h3>
+      <p class="hint">Sums in BCD with the +6 correction, checked against plain addition. Press <strong>Try</strong> to load a case
+        into the calculator.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead><tr><th>#</th><th>Inputs (original)</th><th>Digits</th><th>BCD sum</th><th>Decimal</th><th class="tryc"></th></tr></thead>
+          <tbody id="tcBcdAdd"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:26px;">BCD subtraction by the 9&rsquo;s and 10&rsquo;s complement</h3>
+      <p class="hint">Both complement methods, compared with plain subtraction. Results are shown as <em>BCD pattern (signed value)</em>.</p>
+      <div class="tc-wrap">
+        <table class="tc">
+          <thead><tr><th>#</th><th>Inputs (original)</th><th>Digits</th><th>9&rsquo;s complement</th><th>10&rsquo;s complement</th><th>Plain</th><th class="tryc"></th></tr></thead>
+          <tbody id="tcBcdSub"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="block">
       <h2><span class="n">6</span> Sample output</h2>
-      <p class="hint">Four runs of the program: a Simple chain calculation, an Expression-mode calculation with
+      <p class="hint">Five runs of the program: a Simple chain calculation, an Expression-mode calculation with
         parentheses and mixed precedence, a run that trips an arithmetic error, and a complement run with subtraction
-        by the 1&rsquo;s and 2&rsquo;s complement methods.</p>
+        by the 1&rsquo;s and 2&rsquo;s complement methods, and a BCD run with the 9&rsquo;s and 10&rsquo;s complement methods.</p>
       <h3>Simple chain</h3>
       <div class="sample" id="sampleOut"></div>
       <h3 style="margin-top:22px;">Expression &mdash; precedence &amp; parentheses</h3>
@@ -624,11 +823,13 @@ flowchart TD
       <div class="sample" id="sampleOutError"></div>
       <h3 style="margin-top:22px;">Complements &amp; subtraction by complement</h3>
       <div class="sample-set" id="sampleOutComp"></div>
+      <h3 style="margin-top:22px;">BCD addition &amp; subtraction by 9&rsquo;s and 10&rsquo;s complement</h3>
+      <div class="sample-set" id="sampleOutBcd"></div>
     </div>
 
   </section>
 
-  <footer class="foot">Radix Workbench &mdash; negative results are shown in sign&ndash;magnitude form; complements work on whole numbers in a fixed-width word.</footer>
+  <footer class="foot">Radix Workbench &mdash; negative results are shown in sign&ndash;magnitude form; complements work on whole numbers in a fixed-width word; BCD works on whole, non-negative numbers.</footer>
 
 </div>
 
@@ -665,6 +866,7 @@ flowchart TD
 <script defer src="js/arithmetic.js"></script>
 <script defer src="js/expression.js"></script>
 <script defer src="js/complement.js"></script>
+<script defer src="js/bcd.js"></script>
 <script defer src="js/testcases.js"></script>
 <script defer src="js/app.js"></script>
 </body>

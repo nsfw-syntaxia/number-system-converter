@@ -635,3 +635,16 @@ table.tc.errs { table-layout: fixed; }
   table.tc.errs th:nth-child(2) { width: 28%; }
   table.tc.errs th:nth-child(3) { width: 40%; }
 }
+
+/* ============================================================
+   Step 5 — BCD
+   ============================================================ */
+#view-calc .block:nth-of-type(5) h2 .n { background: var(--cyan); }
+.digit-btn {
+  border: 0; border-right: 2px solid var(--edge); background: var(--card); color: var(--text-soft);
+  font-family: var(--display); font-weight: 600; font-size: .84rem; padding: 8px 15px; cursor: pointer;
+}
+.digit-btn:last-child { border-right: 0; }
+.digit-btn:hover[aria-pressed="false"] { background: var(--app); }
+.digit-btn[aria-pressed="true"] { background: var(--cyan); color: var(--ink-bright); }
+.digit-btn:focus-visible { outline: 3px solid var(--purple); outline-offset: -3px; position: relative; z-index: 1; }
